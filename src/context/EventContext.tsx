@@ -11,6 +11,7 @@ import {
   HostUser,
 } from '@/lib/initialData';
 import { downloadMemoriesZip, downloadSinglePhoto } from '@/lib/downloadHelper';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 export interface FloatingEmoji {
   id: number;
@@ -34,7 +35,14 @@ interface EventContextType {
   isHostLoggedIn: boolean;
   hostUser: HostUser | null;
   loginHost: (email: string, pass: string) => boolean;
-  logoutHost: () => void;
+  loginWithGoogle: () => Promise<{ error?: string }>;
+  loginHostWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  signUpHostWithPassword: (
+    email: string,
+    pass: string,
+    fullName?: string
+  ) => Promise<{ success: boolean; error?: string; requireVerification?: boolean }>;
+  logoutHost: () => Promise<void> | void;
 
   // Events Management
   events: EventItem[];
@@ -206,6 +214,62 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Supabase Auth State Synchronization
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    // 1. Initial active session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const user: HostUser = {
+          id: session.user.id,
+          name:
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.name ||
+            session.user.email?.split('@')[0] ||
+            'Host User',
+          email: session.user.email || '',
+          avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
+        };
+        setHostUser(user);
+        try {
+          localStorage.setItem(STORAGE_KEY_HOST_AUTH, JSON.stringify(user));
+        } catch (e) {}
+      }
+    });
+
+    // 2. Real-time auth changes listener (Google OAuth, Sign In, Sign Out)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        const user: HostUser = {
+          id: session.user.id,
+          name:
+            session.user.user_metadata?.full_name ||
+            session.user.user_metadata?.name ||
+            session.user.email?.split('@')[0] ||
+            'Host User',
+          email: session.user.email || '',
+          avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
+        };
+        setHostUser(user);
+        try {
+          localStorage.setItem(STORAGE_KEY_HOST_AUTH, JSON.stringify(user));
+        } catch (e) {}
+      } else if (event === 'SIGNED_OUT') {
+        setHostUser(null);
+        try {
+          localStorage.removeItem(STORAGE_KEY_HOST_AUTH);
+        } catch (e) {}
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   // Save to LocalStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -302,7 +366,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
       id: 'empty',
       guestName: 'WithLove',
       type: 'photo',
-      url: currentEvent.coverUrl || 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
+      url:
+        currentEvent.coverUrl ||
+        'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
       caption: `Welcome to ${currentEvent.title}!`,
       promptId: prompts[0]?.id || 'fav-chapter',
       isPrivate: false,
@@ -330,7 +396,143 @@ export function EventProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const logoutHost = () => {
+  const loginWithGoogle = async (): Promise<{ error?: string }> => {
+    if (!isSupabaseConfigured()) {
+      const err =
+        'Supabase keys are not set yet. Please paste your NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local';
+      triggerToast('Configuration Required', 'Please set up your .env.local keys');
+      return { error: err };
+    }
+
+    try {
+      const redirectUrl =
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback`
+          : undefined;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+      return {};
+    } catch (err: any) {
+      return { error: err?.message || 'An unexpected error occurred during Google sign in' };
+    }
+  };
+
+  const loginHostWithPassword = async (
+    email: string,
+    pass: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!email.trim()) return { success: false, error: 'Please enter your email address' };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: pass,
+        });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+
+        if (data.user) {
+          const user: HostUser = {
+            id: data.user.id,
+            name:
+              data.user.user_metadata?.full_name ||
+              data.user.user_metadata?.name ||
+              data.user.email?.split('@')[0] ||
+              'Wedding Host',
+            email: data.user.email || email.trim(),
+            avatar: data.user.user_metadata?.avatar_url || data.user.user_metadata?.picture,
+          };
+          setHostUser(user);
+          triggerToast(`Welcome back, ${user.name}!`, 'Host admin session active');
+          return { success: true };
+        }
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Failed to sign in' };
+      }
+    }
+
+    // Fallback demo mode if Supabase credentials are not provided
+    loginHost(email, pass);
+    return { success: true };
+  };
+
+  const signUpHostWithPassword = async (
+    email: string,
+    pass: string,
+    fullName?: string
+  ): Promise<{ success: boolean; error?: string; requireVerification?: boolean }> => {
+    if (!email.trim()) return { success: false, error: 'Please enter your email address' };
+    if (!pass || pass.length < 6)
+      return { success: false, error: 'Password must be at least 6 characters long' };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const redirectUrl =
+          typeof window !== 'undefined'
+            ? `${window.location.origin}/auth/callback`
+            : undefined;
+
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: pass,
+          options: {
+            data: {
+              full_name: fullName?.trim() || email.split('@')[0],
+            },
+            emailRedirectTo: redirectUrl,
+          },
+        });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+
+        if (data.session && data.user) {
+          const user: HostUser = {
+            id: data.user.id,
+            name: fullName?.trim() || data.user.user_metadata?.full_name || email.split('@')[0],
+            email: data.user.email || email.trim(),
+          };
+          setHostUser(user);
+          triggerToast(`Welcome, ${user.name}!`, 'Host account ready');
+          return { success: true };
+        } else if (data.user && !data.session) {
+          return { success: true, requireVerification: true };
+        }
+      } catch (err: any) {
+        return { success: false, error: err?.message || 'Sign up failed' };
+      }
+    }
+
+    // Fallback demo mode
+    loginHost(email, pass);
+    return { success: true };
+  };
+
+  const logoutHost = async () => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('Supabase sign out error:', e);
+      }
+    }
     setHostUser(null);
     try {
       localStorage.removeItem(STORAGE_KEY_HOST_AUTH);
@@ -353,14 +555,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const rawCode = (data.code?.trim() || generatedId).toUpperCase();
     const slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'wedding-event';
 
-    const defaultPromptsList = data.initialPrompts && data.initialPrompts.length > 0
-      ? data.initialPrompts
-      : [
-          { id: `prompt-${Date.now()}-1`, label: 'A moment to remember', icon: '🌿' },
-          { id: `prompt-${Date.now()}-2`, label: 'Oldest memory together', icon: '🕰️' },
-          { id: `prompt-${Date.now()}-3`, label: 'Funniest candid shot', icon: '🥂' },
-          { id: `prompt-${Date.now()}-4`, label: 'Dance floor magic', icon: '✨' },
-        ];
+    const defaultPromptsList =
+      data.initialPrompts && data.initialPrompts.length > 0
+        ? data.initialPrompts
+        : [
+            { id: `prompt-${Date.now()}-1`, label: 'A moment to remember', icon: '🌿' },
+            { id: `prompt-${Date.now()}-2`, label: 'Oldest memory together', icon: '🕰️' },
+            { id: `prompt-${Date.now()}-3`, label: 'Funniest candid shot', icon: '🥂' },
+            { id: `prompt-${Date.now()}-4`, label: 'Dance floor magic', icon: '✨' },
+          ];
 
     const newEvent: EventItem = {
       id: generatedId,
@@ -637,6 +840,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       triggerToast('Cannot spotlight a Private Vault photo', 'Make it public first');
       return;
     }
+
     if (spotlightId === memoryId) {
       setSpotlightId(null);
       triggerToast('Spotlight released', 'Resumed auto-rolling slideshow');
@@ -730,6 +934,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         isHostLoggedIn: Boolean(hostUser),
         hostUser,
         loginHost,
+        loginWithGoogle,
+        loginHostWithPassword,
+        signUpHostWithPassword,
         logoutHost,
         events,
         currentEvent,

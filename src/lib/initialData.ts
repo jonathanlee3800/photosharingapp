@@ -44,6 +44,7 @@ export interface HostUser {
   id: string;
   name: string;
   email: string;
+  avatar?: string;
 }
 
 export const INITIAL_PROMPTS: PromptItem[] = [

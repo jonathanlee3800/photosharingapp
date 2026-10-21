@@ -3,18 +3,38 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, Mail, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Shield, Lock, Mail, ArrowRight, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import GoogleIcon from '@/components/GoogleIcon';
 
 export default function HostLoginPage() {
   const router = useRouter();
-  const { isHostLoggedIn, loginHost, hostUser, logoutHost } = useEvent();
+  const {
+    isHostLoggedIn,
+    loginHost,
+    loginHostWithPassword,
+    loginWithGoogle,
+    hostUser,
+    logoutHost,
+  } = useEvent();
 
   const [email, setEmail] = useState('host@withlove.app');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const [loadingEmail, setLoadingEmail] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoadingGoogle(true);
+    const { error: googleError } = await loginWithGoogle();
+    if (googleError) {
+      setError(googleError);
+      setLoadingGoogle(false);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -23,9 +43,14 @@ export default function HostLoginPage() {
       return;
     }
 
-    const success = loginHost(email, password);
-    if (success) {
+    setLoadingEmail(true);
+    const result = await loginHostWithPassword(email, password);
+    setLoadingEmail(false);
+
+    if (result.success) {
       router.push('/host/events');
+    } else {
+      setError(result.error || 'Failed to sign in. Please verify your credentials.');
     }
   };
 
@@ -76,75 +101,115 @@ export default function HostLoginPage() {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-4">
             {error && (
-              <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs font-semibold">
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium leading-relaxed">
                 {error}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-bold text-[#1C2820]/80 uppercase tracking-wide mb-1.5">
-                Host Email
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#1C2820]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. simone@withlove.app"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#1C2820]/80 uppercase tracking-wide mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#1C2820]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
-                />
-              </div>
-            </div>
-
+            {/* Google Sign In Button */}
             <button
-              type="submit"
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs sm:text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-95"
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loadingGoogle}
+              className="w-full py-3.5 px-4 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-neutral-50 active:bg-neutral-100 text-[#1C2820] text-xs sm:text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-3 disabled:opacity-60"
             >
-              <span>Sign In as Host</span>
-              <ArrowRight className="w-4 h-4" />
+              {loadingGoogle ? (
+                <Loader2 className="w-4 h-4 animate-spin text-[#2D4A3A]" />
+              ) : (
+                <GoogleIcon className="w-4 h-4 flex-shrink-0" />
+              )}
+              <span>{loadingGoogle ? 'Connecting to Google...' : 'Sign in with Google'}</span>
             </button>
 
-            {/* Quick Demo Login Option */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleQuickDemoLogin}
-                className="w-full py-3 rounded-xl border border-[#2D4A3A]/30 bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                <span>1-Click Host Demo Sign In</span>
-              </button>
+            {/* Visual Divider */}
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-[#1C2820]/10"></div>
+              <span className="flex-shrink mx-3 text-[11px] font-semibold text-[#1C2820]/45 uppercase tracking-wider">
+                or sign in with password
+              </span>
+              <div className="flex-grow border-t border-[#1C2820]/10"></div>
             </div>
-          </form>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#1C2820]/80 uppercase tracking-wide mb-1.5">
+                  Host Email
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#1C2820]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. simone@withlove.app"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1C2820]/80 uppercase tracking-wide mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-[#1C2820]/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loadingEmail}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs sm:text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-95 disabled:opacity-60"
+              >
+                {loadingEmail ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <span>Sign In as Host</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+
+              {/* Quick Demo Login Option */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleQuickDemoLogin}
+                  className="w-full py-3 rounded-xl border border-[#2D4A3A]/30 bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#2D4A3A]" />
+                  <span>1-Click Host Demo Sign In</span>
+                </button>
+              </div>
+            </form>
+          </div>
         )}
 
-        <div className="pt-4 border-t border-[#1C2820]/10 text-center text-xs text-[#1C2820]/60">
-          <span>Are you a guest attending an event? </span>
-          <Link href="/" className="font-bold text-[#2D4A3A] hover:underline">
-            Join Celebration →
-          </Link>
+        <div className="pt-4 border-t border-[#1C2820]/10 text-center text-xs text-[#1C2820]/65 space-y-1">
+          <div>
+            <span>Don't have a host account? </span>
+            <Link href="/host/signup" className="font-bold text-[#2D4A3A] hover:underline">
+              Create Host Account →
+            </Link>
+          </div>
+          <div>
+            <span>Are you a guest attending an event? </span>
+            <Link href="/" className="font-medium text-[#1C2820]/75 hover:underline">
+              Join Celebration
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
