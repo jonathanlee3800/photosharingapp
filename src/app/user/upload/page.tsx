@@ -14,15 +14,18 @@ import {
   X,
   User,
   Loader2,
+  ImageIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { SAMPLE_PRESETS } from '@/lib/initialData';
 import { useEvent } from '@/context/EventContext';
+import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
 
 interface SelectedMediaFile {
   url: string;
   name: string;
   type: 'photo' | 'video';
+  isPendingCompression?: boolean;
 }
 
 export default function UploadPage() {
@@ -37,9 +40,10 @@ export default function UploadPage() {
 
   const [authorInput, setAuthorInput] = useState(guestName || '');
   const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
-  const [selectedPreset, setSelectedPreset] = useState(0);
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<SelectedMediaFile | null>(null);
-  const [isConverting, setIsConverting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [caption, setCaption] = useState('');
   const [promptId, setPromptId] = useState(prompts[0]?.id || 'fav-chapter');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -59,76 +63,34 @@ export default function UploadPage() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Helper: Takes any image Blob, resizes to max 1400px on canvas, and outputs universal JPEG DataURL
-  const compressBlobToJpeg = (blob: Blob, displayName: string): Promise<SelectedMediaFile> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result;
-        if (typeof result !== 'string') {
-          reject(new Error('Failed to read image data'));
-          return;
-        }
-        const img = new Image();
-        img.onload = () => {
-          const MAX_DIM = 1400;
-          let { width, height } = img;
-          if (width > MAX_DIM || height > MAX_DIM) {
-            if (width > height) {
-              height = Math.round((height * MAX_DIM) / width);
-              width = MAX_DIM;
-            } else {
-              width = Math.round((width * MAX_DIM) / height);
-              height = MAX_DIM;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-            resolve({
-              url: compressedDataUrl,
-              name: displayName,
-              type: 'photo',
-            });
-          } else {
-            resolve({
-              url: result,
-              name: displayName,
-              type: 'photo',
-            });
-          }
-        };
-        img.onerror = () => {
-          reject(new Error('Browser could not decode image directly'));
-        };
-        img.src = result;
-      };
-      reader.onerror = () => reject(new Error('FileReader error'));
-      reader.readAsDataURL(blob);
-    });
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Reset file input so user can pick again
+    // Reset file input so user can pick the same file again if desired
     e.target.value = '';
 
-    const isVideo = file.type.startsWith('video/');
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
 
     if (isVideo) {
-      if (file.size > 4.5 * 1024 * 1024) {
+      if (file.size > 15 * 1024 * 1024) {
         triggerToast(
-          'Video file is too large for browser storage',
-          'Please pick a shorter clip (under 4.5 MB)'
+          'Video file is too large',
+          'Please select a clip under 15 MB for quick sharing'
         );
         return;
       }
+
+      setIsProcessing(true);
+      const instantVideoUrl = URL.createObjectURL(file);
+      setSelectedFile({
+        url: instantVideoUrl,
+        name: file.name,
+        type: 'video',
+      });
+      setMediaType('video');
+      setSelectedPreset(null);
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result;
@@ -138,95 +100,123 @@ export default function UploadPage() {
             name: file.name,
             type: 'video',
           });
-          setMediaType('video');
         }
+        setIsProcessing(false);
       };
+      reader.onerror = () => setIsProcessing(false);
       reader.readAsDataURL(file);
       return;
     }
 
-    // Check if the photo is an iPhone HEIC / HEIF file
-    const lowerName = file.name.toLowerCase();
-    const isHeic =
-      file.type === 'image/heic' ||
-      file.type === 'image/heif' ||
-      lowerName.endsWith('.heic') ||
-      lowerName.endsWith('.heif');
-
-    const normalizedName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
-
-    setIsConverting(true);
-    try {
-      let sourceBlob: Blob = file;
-
-      if (isHeic) {
-        try {
-          const heic2any = (await import('heic2any')).default;
-          const converted = await heic2any({
-            blob: file,
-            toType: 'image/jpeg',
-            quality: 0.85,
-          });
-          sourceBlob = Array.isArray(converted) ? converted[0] : converted;
-        } catch (heicErr) {
-          // If Safari natively decoded it or file was already JPEG with .heic extension, fall through to canvas
-          console.warn('heic2any fallback to native image decoder:', heicErr);
-        }
-      }
-
-      const processed = await compressBlobToJpeg(sourceBlob, normalizedName);
-      setSelectedFile(processed);
-      setMediaType('photo');
-    } catch (err) {
-      console.error('Image conversion error:', err);
-      triggerToast(
-        'Could not process image format',
-        'Please try selecting another photo from your library'
-      );
-    } finally {
-      setIsConverting(false);
+    if (!isValidImageFile(file)) {
+      triggerToast('Please select a valid image file (JPG, PNG, HEIC, WebP)');
+      return;
     }
+
+    const isHeic = isHeicFile(file);
+    setIsProcessing(true);
+    setSelectedPreset(null);
+
+    // If standard JPEG/PNG, display instant preview immediately (0ms)
+    if (!isHeic) {
+      const instantUrl = URL.createObjectURL(file);
+      setSelectedFile({
+        url: instantUrl,
+        name: file.name,
+        type: 'photo',
+        isPendingCompression: true,
+      });
+      setMediaType('photo');
+      triggerToast('Photo loaded!', file.name);
+    } else {
+      triggerToast('Converting iPhone HEIC photo...', file.name);
+    }
+
+    // Process & convert HEIC (via server libheif) and compress to JPEG DataURL
+    try {
+      const processed = await processUploadedImage(file, {
+        maxDimension: 1400,
+        quality: 0.85,
+      });
+
+      setSelectedFile({
+        url: processed.dataUrl,
+        name: processed.fileName,
+        type: 'photo',
+        isPendingCompression: false,
+      });
+      setMediaType('photo');
+      triggerToast('Photo ready to post!', processed.fileName);
+    } catch (err: any) {
+      console.warn('Image processing fallback:', err);
+      triggerToast('Could not convert HEIC photo', 'Please try selecting another photo');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUsePreset = () => {
+    const nextIdx = selectedPreset === null ? 0 : (selectedPreset + 1) % SAMPLE_PRESETS.length;
+    setSelectedPreset(nextIdx);
+    setSelectedFile(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalAuthor = authorInput.trim() || guestName || 'Wedding Guest';
 
-    if (selectedFile) {
-      await addMemory({
-        type: selectedFile.type,
-        url: selectedFile.url,
-        caption:
-          caption.trim() ||
-          `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
-        promptId,
-        isPrivate,
-        duration: selectedFile.type === 'video' ? '0:24' : undefined,
-        guestName: finalAuthor,
-      });
-    } else {
-      // Fallback demo preset
-      const presetUrl = (SAMPLE_PRESETS[selectedPreset] || SAMPLE_PRESETS[0]).url;
-      await addMemory({
-        type: mediaType,
-        url: presetUrl,
-        caption:
-          caption.trim() ||
-          `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
-        promptId,
-        isPrivate,
-        duration: mediaType === 'video' ? '0:24' : undefined,
-        guestName: finalAuthor,
-      });
+    if (!selectedFile && selectedPreset === null) {
+      triggerToast(
+        'Photo required',
+        'Please tap "Take Photo or Choose from Library" to pick your memory'
+      );
+      return;
     }
 
-    router.push(`/user/${currentEvent.id}/gallery`);
+    const finalAuthor = authorInput.trim() || guestName || 'Wedding Guest';
+    setIsSubmitting(true);
+
+    try {
+      if (selectedFile) {
+        await addMemory({
+          type: selectedFile.type,
+          url: selectedFile.url,
+          caption:
+            caption.trim() ||
+            `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
+          promptId,
+          isPrivate,
+          duration: selectedFile.type === 'video' ? '0:24' : undefined,
+          guestName: finalAuthor,
+        });
+      } else if (selectedPreset !== null) {
+        const presetUrl = (SAMPLE_PRESETS[selectedPreset] || SAMPLE_PRESETS[0]).url;
+        await addMemory({
+          type: mediaType,
+          url: presetUrl,
+          caption:
+            caption.trim() ||
+            `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
+          promptId,
+          isPrivate,
+          duration: mediaType === 'video' ? '0:24' : undefined,
+          guestName: finalAuthor,
+        });
+      }
+
+      router.push(`/user/${currentEvent.id}/gallery`);
+    } catch (err) {
+      console.error('Error posting memory:', err);
+      triggerToast('Could not post memory', 'Please check your connection and try again');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const currentPreviewUrl =
-    selectedFile?.url || SAMPLE_PRESETS[selectedPreset].url;
-
-  const currentPreviewName = selectedFile?.name || null;
+  const activeDisplayUrl = selectedFile
+    ? selectedFile.url
+    : selectedPreset !== null
+    ? SAMPLE_PRESETS[selectedPreset].url
+    : null;
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 pb-28 sm:pb-12">
@@ -257,7 +247,10 @@ export default function UploadPage() {
           <div className="grid grid-cols-2 gap-2 bg-[#FAF8F5] p-1.5 rounded-2xl border border-[#1C2820]/10">
             <button
               type="button"
-              onClick={() => setMediaType('photo')}
+              onClick={() => {
+                setMediaType('photo');
+                if (selectedFile?.type === 'video') setSelectedFile(null);
+              }}
               className={`py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                 mediaType === 'photo'
                   ? 'bg-[#2D4A3A] text-white shadow-sm'
@@ -269,7 +262,10 @@ export default function UploadPage() {
             </button>
             <button
               type="button"
-              onClick={() => setMediaType('video')}
+              onClick={() => {
+                setMediaType('video');
+                if (selectedFile?.type === 'photo') setSelectedFile(null);
+              }}
               className={`py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
                 mediaType === 'video'
                   ? 'bg-[#2D4A3A] text-white shadow-sm'
@@ -281,7 +277,7 @@ export default function UploadPage() {
             </button>
           </div>
 
-          {/* Hidden Real File Input (supports iPhone HEIC/HEIF & standard images/videos) */}
+          {/* Hidden Real File Input */}
           <input
             ref={fileInputRef}
             type="file"
@@ -290,85 +286,113 @@ export default function UploadPage() {
             className="hidden"
           />
 
-          {/* Media Preview & Trigger */}
+          {/* Media Preview & Trigger Box */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-            <div className="relative aspect-[4/3] sm:aspect-square rounded-2xl overflow-hidden border border-[#1C2820]/15 shadow-inner bg-black/5">
-              {currentPreviewUrl.startsWith('data:video') ? (
-                <video
-                  src={currentPreviewUrl}
-                  controls
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <img
-                  src={currentPreviewUrl}
-                  alt="Upload preview"
-                  className="w-full h-full object-cover"
-                />
-              )}
+            {/* Left: Preview Box */}
+            <div className="relative aspect-[4/3] sm:aspect-square rounded-2xl overflow-hidden border border-[#1C2820]/15 shadow-inner bg-[#FAF8F5] flex items-center justify-center">
+              {activeDisplayUrl ? (
+                <>
+                  {mediaType === 'video' || selectedFile?.type === 'video' ? (
+                    <video
+                      src={activeDisplayUrl}
+                      controls
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={activeDisplayUrl}
+                      alt="Upload preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.warn('Image preview load error');
+                      }}
+                    />
+                  )}
 
-              {isConverting && (
-                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center text-white p-4 text-center gap-2">
-                  <Loader2 className="w-7 h-7 animate-spin text-[#9BC4A8]" />
-                  <span className="text-xs font-bold">
-                    Optimizing iPhone photo to JPEG...
-                  </span>
+                  {/* Active Indicator Badge */}
+                  <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/75 backdrop-blur-md text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md">
+                    <Check className="w-3.5 h-3.5 text-[#9BC4A8] stroke-[3]" />
+                    <span>{selectedFile ? 'Active Photo' : 'Demo Sample'}</span>
+                  </div>
+
+                  {/* File Name Tag */}
+                  {selectedFile && (
+                    <span className="absolute bottom-3 left-3 right-3 px-3 py-1.5 rounded-xl bg-black/75 backdrop-blur-md text-white text-[11px] font-semibold truncate shadow-md">
+                      {selectedFile.name}
+                    </span>
+                  )}
+                </>
+              ) : (
+                /* Empty Placeholder State */
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="cursor-pointer p-6 text-center space-y-2 flex flex-col items-center justify-center text-[#1C2820]/60 hover:text-[#2D4A3A] transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-full bg-[#E9EFEA] flex items-center justify-center text-[#2D4A3A] shadow-sm">
+                    {mediaType === 'video' ? (
+                      <Video className="w-6 h-6" />
+                    ) : (
+                      <Camera className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div className="font-bold text-xs text-[#1C2820]">
+                    No {mediaType === 'video' ? 'video' : 'photo'} selected yet
+                  </div>
+                  <div className="text-[10px] text-[#1C2820]/50 font-medium">
+                    Tap the button on the right to choose from your library
+                  </div>
                 </div>
               )}
 
-              {currentPreviewName && !isConverting && (
-                <span className="absolute bottom-3 left-3 right-3 px-3 py-1.5 rounded-xl bg-black/75 backdrop-blur-md text-white text-[11px] font-semibold truncate">
-                  {currentPreviewName}
-                </span>
+              {/* Processing Loader Overlay */}
+              {isProcessing && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white p-4 text-center gap-2">
+                  <Loader2 className="w-7 h-7 animate-spin text-[#9BC4A8]" />
+                  <span className="text-xs font-bold">
+                    Optimizing photo for instant loading...
+                  </span>
+                </div>
               )}
             </div>
 
+            {/* Right: Actions */}
             <div className="flex flex-col gap-3">
               {/* Primary Camera / File Upload CTA */}
               <button
                 type="button"
-                disabled={isConverting}
+                disabled={isProcessing || isSubmitting}
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-5 px-4 rounded-2xl border-2 border-dashed border-[#2D4A3A] bg-[#E9EFEA]/60 hover:bg-[#E9EFEA] disabled:opacity-50 text-[#1C2820] flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.99] text-center"
+                className="w-full py-5 px-4 rounded-2xl border-2 border-dashed border-[#2D4A3A] bg-[#E9EFEA]/60 hover:bg-[#E9EFEA] disabled:opacity-50 text-[#1C2820] flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.99] text-center shadow-sm"
               >
                 <div className="w-10 h-10 rounded-full bg-[#2D4A3A] text-white flex items-center justify-center shadow-sm">
-                  {isConverting ? (
+                  {isProcessing ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <Upload className="w-5 h-5" />
                   )}
                 </div>
                 <span className="text-xs font-bold mt-1">
-                  {isConverting
-                    ? 'Converting HEIC to JPEG...'
+                  {isProcessing
+                    ? 'Processing Image...'
                     : mediaType === 'video'
-                    ? 'Choose Video File'
+                    ? selectedFile
+                      ? 'Choose Different Video'
+                      : 'Choose Video File'
                     : selectedFile
                     ? 'Choose a Different Photo'
                     : 'Take Photo or Choose from Library'}
                 </span>
                 <span className="text-[10px] text-[#1C2820]/60 font-medium">
                   {selectedFile
-                    ? 'Converted to universal JPEG · Tap to replace'
+                    ? 'Ready to post · Tap to replace'
                     : 'Supports iPhone HEIC, JPG, PNG & Android camera roll'}
                 </span>
               </button>
 
-              {/* Sample Preset Switcher (when no custom file selected) */}
-              {!selectedFile ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedPreset((prev) => (prev + 1) % SAMPLE_PRESETS.length);
-                  }}
-                  className="w-full py-2.5 px-3 rounded-xl border border-[#1C2820]/10 hover:bg-black/5 text-[#1C2820]/75 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Switch demo sample ({selectedPreset + 1}/{SAMPLE_PRESETS.length})</span>
-                </button>
-              ) : (
+              {/* Reset / Demo Preset Options */}
+              {selectedFile ? (
                 <button
                   type="button"
                   onClick={() => setSelectedFile(null)}
@@ -376,6 +400,19 @@ export default function UploadPage() {
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>Remove selected photo</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleUsePreset}
+                  className="w-full py-2.5 px-3 rounded-xl border border-[#1C2820]/15 hover:bg-black/5 text-[#1C2820]/75 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedPreset !== null
+                      ? `Switch demo sample (${selectedPreset + 1}/${SAMPLE_PRESETS.length})`
+                      : 'Or test with a demo photo'}
+                  </span>
                 </button>
               )}
             </div>
@@ -489,13 +526,18 @@ export default function UploadPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isConverting}
+            disabled={isProcessing || isSubmitting || (!selectedFile && selectedPreset === null)}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99] text-white text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
           >
-            {isConverting ? (
+            {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Converting Photo to JPEG...</span>
+                <span>Posting to Live Wedding Stream...</span>
+              </>
+            ) : isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Processing Image...</span>
               </>
             ) : (
               <>

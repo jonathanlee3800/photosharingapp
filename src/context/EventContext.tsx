@@ -695,7 +695,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
               cover_url:
                 data.coverUrl ||
                 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
-              owner_id: hostUser.id,
+              owner_id: isUuid(hostUser.id) ? hostUser.id : '61e6052c-d4bf-446d-b51f-aa5961791d1a',
             },
           ])
           .select()
@@ -925,7 +925,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
           {
             reaction_type: emoji,
             event_id: isUuid(currentEvent.id) ? currentEvent.id : null,
-            guest_id: hostUser?.id || null,
+            guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null,
           },
         ])
         .then();
@@ -994,7 +994,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
             id: memoryUuid,
             event_id: eventIdVal,
             guest_name: finalAuthor,
-            guest_id: hostUser?.id || null, // null safely bypasses foreign key check for guests
+            guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null, // null safely bypasses foreign key check for guests
             file_url: newEntry.url,
             caption: created.caption,
             category_tag: created.promptId,
@@ -1084,7 +1084,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
             id: c.id,
             event_id: eventIdVal,
             guest_name: c.guestName,
-            guest_id: hostUser?.id || null,
+            guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null,
             file_url: c.url,
             caption: c.caption,
             category_tag: c.promptId,
@@ -1127,7 +1127,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
             {
               post_id: memoryId,
               reaction_type: 'vote',
-              guest_id: hostUser?.id || null,
+              guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null,
               event_id: isUuid(currentEvent.id) ? currentEvent.id : null,
             },
           ]);
