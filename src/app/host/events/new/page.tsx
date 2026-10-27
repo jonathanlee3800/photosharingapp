@@ -20,6 +20,7 @@ import { useEvent } from '@/context/EventContext';
 import { PromptItem } from '@/lib/initialData';
 import { generateQrDataUrl, downloadQrCode } from '@/lib/qrHelper';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import DatePicker from '@/components/DatePicker';
 
 const COVER_PRESETS = [
   {
@@ -47,7 +48,14 @@ export default function CreateEventPage() {
   const { events, createEvent } = useEvent();
 
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState('24 May 2026');
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  });
   const [venue, setVenue] = useState('The Glasshouse');
   const [uniqueEventId, setUniqueEventId] = useState(() => {
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -139,7 +147,7 @@ export default function CreateEventPage() {
     const newEvent = await createEvent({
 
       title: title.trim(),
-      date: date.trim() || '24 May 2026',
+      date: date.trim(),
       venue: venue.trim() || 'The Glasshouse',
       code: cleanId.toUpperCase(),
       coverUrl: COVER_PRESETS[selectedCover].url,
@@ -202,13 +210,7 @@ export default function CreateEventPage() {
                     <Calendar className="w-3.5 h-3.5 text-[#2D4A3A]" />
                     <span>Event Date</span>
                   </label>
-                  <input
-                    type="text"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    placeholder="e.g. 24 May 2026"
-                    className="w-full px-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs font-semibold focus:outline-none focus:border-[#2D4A3A]"
-                  />
+                  <DatePicker value={date} onChange={setDate} />
                 </div>
 
                 <div>
