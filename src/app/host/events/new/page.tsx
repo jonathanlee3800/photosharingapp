@@ -114,7 +114,7 @@ export default function CreateEventPage() {
     setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
@@ -136,8 +136,8 @@ export default function CreateEventPage() {
       return;
     }
 
-    const newEvent = createEvent({
-      id: cleanId,
+    const newEvent = await createEvent({
+
       title: title.trim(),
       date: date.trim() || '24 May 2026',
       venue: venue.trim() || 'The Glasshouse',

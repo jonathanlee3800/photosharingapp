@@ -1,4 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+// Legacy compatibility wrapper
+// All existing code that imports from '@/lib/supabaseClient' continues to work.
+// New code should import from '@/lib/supabase/client' (browser) or
+// '@/lib/supabase/server' (server components) instead.
+
+import { createClient } from '@/lib/supabase/client'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -8,20 +13,12 @@ export const isSupabaseConfigured = (): boolean => {
     Boolean(supabaseUrl) &&
     Boolean(supabaseAnonKey) &&
     !supabaseUrl.includes('your-project-id') &&
-    !supabaseAnonKey.includes('your-anon-public-key')
+    !supabaseAnonKey.includes('your-anon-public-key') &&
+    supabaseUrl.startsWith('https://')
   );
 };
 
-// Safe dummy values to prevent runtime crashes if env vars are not set yet
-export const supabase = createClient(
-  isSupabaseConfigured() ? supabaseUrl : 'https://placeholder.supabase.co',
-  isSupabaseConfigured() ? supabaseAnonKey : 'placeholder-anon-key',
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  }
-);
-
+// Singleton browser client for use in client components and EventContext
+export const supabase = isSupabaseConfigured()
+  ? createClient()
+  : createClient(); // @supabase/ssr handles missing env gracefully

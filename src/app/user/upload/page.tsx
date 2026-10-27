@@ -188,12 +188,12 @@ export default function UploadPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalAuthor = authorInput.trim() || guestName || 'Wedding Guest';
 
     if (selectedFile) {
-      addMemory({
+      await addMemory({
         type: selectedFile.type,
         url: selectedFile.url,
         caption:
@@ -207,7 +207,7 @@ export default function UploadPage() {
     } else {
       // Fallback demo preset
       const presetUrl = (SAMPLE_PRESETS[selectedPreset] || SAMPLE_PRESETS[0]).url;
-      addMemory({
+      await addMemory({
         type: mediaType,
         url: presetUrl,
         caption:

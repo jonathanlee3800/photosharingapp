@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import {
   INITIAL_MEMORIES,
   INITIAL_PROMPTS,
@@ -57,7 +57,7 @@ interface EventContextType {
     code?: string;
     coverUrl?: string;
     initialPrompts?: PromptItem[];
-  }) => EventItem;
+  }) => Promise<EventItem>;
   updateEvent: (id: string, updates: Partial<EventItem>) => void;
   deleteEvent: (id: string) => void;
 
@@ -74,8 +74,8 @@ interface EventContextType {
   publicMemories: MemoryItem[];
   privateMemories: MemoryItem[];
   getPrompt: (id: string) => PromptItem;
-  addPrompt: (label: string, icon?: string) => void;
-  deletePrompt: (promptId: string) => void;
+  addPrompt: (label: string, icon?: string) => Promise<void>;
+  deletePrompt: (promptId: string) => Promise<void>;
   setVotingCategory: (promptId: string) => void;
 
   // Actions
@@ -89,7 +89,7 @@ interface EventContextType {
     isPrivate?: boolean;
     duration?: string;
     guestName?: string;
-  }) => void;
+  }) => Promise<void>;
   addMultipleMemories: (entries: Array<{
     type: 'photo' | 'video';
     url: string;
@@ -98,12 +98,12 @@ interface EventContextType {
     isPrivate?: boolean;
     duration?: string;
     guestName?: string;
-  }>) => void;
-  toggleVote: (memoryId: string) => void;
-  togglePrivacy: (memoryId: string) => void;
-  toggleSpotlight: (memoryId: string) => void;
-  deleteMemory: (memoryId: string) => void;
-  deleteMultipleMemories: (ids: string[]) => void;
+  }>) => Promise<void>;
+  toggleVote: (memoryId: string) => Promise<void>;
+  togglePrivacy: (memoryId: string) => Promise<void>;
+  toggleSpotlight: (memoryId: string) => Promise<void>;
+  deleteMemory: (memoryId: string) => Promise<void>;
+  deleteMultipleMemories: (ids: string[]) => Promise<void>;
 
   // Slideshow & Spotlight
   spotlightId: string | null;
@@ -145,6 +145,11 @@ const STORAGE_KEY_GUEST = 'withlove_guest_name';
 const STORAGE_KEY_HOST_AUTH = 'withlove_host_user_auth';
 const STORAGE_KEY_REACTIONS = 'withlove_reactions_count';
 
+const isUuid = (str?: string): boolean => {
+  if (!str) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+};
+
 export function EventProvider({ children }: { children: ReactNode }) {
   // Host Auth State
   const [hostUser, setHostUser] = useState<HostUser | null>(null);
@@ -163,7 +168,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [memories, setMemories] = useState<MemoryItem[]>(INITIAL_MEMORIES);
 
   // Spotlight & Slideshow
-  const [spotlightId, setSpotlightId] = useState<string | null>('mem-1');
+  const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [currentSlideIdx, setCurrentSlideIdx] = useState<number>(0);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState<boolean>(true);
 
@@ -172,7 +177,93 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [isZipModalOpen, setIsZipModalOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  // Load from LocalStorage
+  const triggerToast = useCallback((title: string, subtitle = 'Synced across all active screens') => {
+    setToast({ title, subtitle, id: Date.now() });
+  }, []);
+
+  // Fetch Events from Supabase
+  const fetchEventsFromDb = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data: dbEvents, error } = await supabase
+        .from('events')
+        .select('*, prompts(*)');
+
+      if (error) {
+        console.warn('Error fetching events from Supabase:', error);
+        return;
+      }
+
+      if (dbEvents && dbEvents.length > 0) {
+        const mapped: EventItem[] = dbEvents.map((e: any) => ({
+          id: e.id,
+          title: e.title,
+          date: e.date || '24 May 2026',
+          venue: e.venue || 'The Glasshouse',
+          code: e.join_code,
+          slug: e.slug || e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          coverUrl:
+            e.cover_url ||
+            'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
+          prompts:
+            e.prompts && e.prompts.length > 0
+              ? e.prompts.map((p: any) => ({ id: p.id, label: p.label, icon: p.icon || '🌿' }))
+              : INITIAL_PROMPTS,
+          votingPromptId: e.voting_prompt_id || '',
+          createdAt: e.created_at,
+        }));
+        setEvents(mapped);
+      }
+    } catch (err) {
+      console.warn('Error fetching events from Supabase:', err);
+    }
+  }, []);
+
+  // Fetch Posts from Supabase
+  const fetchPostsFromDb = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data: dbPosts, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error fetching posts from Supabase:', error);
+        return;
+      }
+
+      if (dbPosts) {
+        const mapped: MemoryItem[] = dbPosts.map((p: any) => ({
+          id: p.id,
+          eventId: p.event_id || undefined,
+          guestName: p.guest_name || 'Wedding Guest',
+          type: (p.media_type as 'photo' | 'video') || 'photo',
+          duration: p.video_duration || undefined,
+          url: p.file_url,
+          caption: p.caption || '',
+          promptId: p.category_tag || 'fav-chapter',
+          isPrivate: Boolean(p.is_private),
+          votes: p.votes_count || 0,
+          votedByMe: false,
+          timestamp: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+
+        if (mapped.length > 0) {
+          setMemories(mapped);
+        }
+
+        const spotlighted = dbPosts.find((p: any) => p.is_spotlight);
+        if (spotlighted) {
+          setSpotlightId(spotlighted.id);
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching posts from Supabase:', err);
+    }
+  }, []);
+
+  // 1. Initial Load from LocalStorage (fast fallback)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -214,11 +305,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Supabase Auth State Synchronization
+  // 2. Supabase Auth State Synchronization & Initial DB Pull
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
 
-    // 1. Initial active session check
+    // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         const user: HostUser = {
@@ -238,7 +329,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // 2. Real-time auth changes listener (Google OAuth, Sign In, Sign Out)
+    // Listen to Auth State Changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -265,10 +356,41 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // Pull from DB
+    fetchEventsFromDb();
+    fetchPostsFromDb();
+
+    // Set up Real-time Live Synchronization Channel
+    const channel = supabase
+      .channel('realtime-photosharing-v1')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'posts' },
+        () => {
+          fetchPostsFromDb();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events' },
+        () => {
+          fetchEventsFromDb();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prompts' },
+        () => {
+          fetchEventsFromDb();
+        }
+      )
+      .subscribe();
+
     return () => {
       subscription?.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchEventsFromDb, fetchPostsFromDb]);
 
   // Save to LocalStorage
   useEffect(() => {
@@ -298,10 +420,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
-
-  const triggerToast = (title: string, subtitle = 'Synced across all active screens') => {
-    setToast({ title, subtitle, id: Date.now() });
-  };
 
   const getEventById = (idOrCode: string): EventItem | undefined => {
     const clean = idOrCode.trim().toLowerCase();
@@ -467,7 +585,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Fallback demo mode if Supabase credentials are not provided
     loginHost(email, pass);
     return { success: true };
   };
@@ -520,7 +637,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Fallback demo mode
     loginHost(email, pass);
     return { success: true };
   };
@@ -541,7 +657,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   // Event Creation
-  const createEvent = (data: {
+  const createEvent = async (data: {
     id?: string;
     title: string;
     date: string;
@@ -549,24 +665,65 @@ export function EventProvider({ children }: { children: ReactNode }) {
     code?: string;
     coverUrl?: string;
     initialPrompts?: PromptItem[];
-  }): EventItem => {
+  }): Promise<EventItem> => {
     const randomSuffix = Math.random().toString(36).substring(2, 8).toLowerCase();
-    const generatedId = (data.id?.trim() || data.code?.trim() || `evt-${randomSuffix}`).toLowerCase();
-    const rawCode = (data.code?.trim() || generatedId).toUpperCase();
-    const slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'wedding-event';
+    const rawCode = (data.code?.trim() || `EVT-${randomSuffix}`).toUpperCase();
+    const slug =
+      data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') ||
+      'wedding-event';
 
     const defaultPromptsList =
       data.initialPrompts && data.initialPrompts.length > 0
         ? data.initialPrompts
-        : [
-            { id: `prompt-${Date.now()}-1`, label: 'A moment to remember', icon: '🌿' },
-            { id: `prompt-${Date.now()}-2`, label: 'Oldest memory together', icon: '🕰️' },
-            { id: `prompt-${Date.now()}-3`, label: 'Funniest candid shot', icon: '🥂' },
-            { id: `prompt-${Date.now()}-4`, label: 'Dance floor magic', icon: '✨' },
-          ];
+        : INITIAL_PROMPTS;
+
+    let eventUuid = data.id && isUuid(data.id) ? data.id : crypto.randomUUID();
+
+    // Database Insert into Supabase 'events'
+    if (isSupabaseConfigured() && hostUser) {
+      try {
+        const { data: dbEvent, error: insertError } = await supabase
+          .from('events')
+          .insert([
+            {
+              id: eventUuid,
+              title: data.title.trim(),
+              date: data.date.trim() || '24 May 2026',
+              venue: data.venue.trim() || 'The Glasshouse',
+              join_code: rawCode,
+              slug,
+              cover_url:
+                data.coverUrl ||
+                'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
+              owner_id: hostUser.id,
+            },
+          ])
+          .select()
+          .single();
+
+        if (dbEvent) {
+          eventUuid = dbEvent.id;
+          // Insert custom prompts into 'prompts' table
+          if (defaultPromptsList.length > 0) {
+            await supabase.from('prompts').insert(
+              defaultPromptsList.map((p) => ({
+                event_id: eventUuid,
+                label: p.label,
+                icon: p.icon || '🌿',
+              }))
+            );
+          }
+        } else if (insertError) {
+          console.warn('Supabase event insert failed:', insertError);
+          triggerToast('Cloud sync notice', insertError.message);
+        }
+      } catch (err) {
+        console.warn('createEvent Supabase exception:', err);
+      }
+    }
 
     const newEvent: EventItem = {
-      id: generatedId,
+      id: eventUuid,
       title: data.title.trim(),
       date: data.date.trim() || '24 May 2026',
       venue: data.venue.trim() || 'The Glasshouse',
@@ -576,24 +733,38 @@ export function EventProvider({ children }: { children: ReactNode }) {
         data.coverUrl ||
         'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
       prompts: defaultPromptsList,
-      votingPromptId: defaultPromptsList[0].id,
+      votingPromptId: defaultPromptsList[0]?.id || '',
       createdAt: new Date().toISOString(),
     };
 
     setEvents((prev) => [newEvent, ...prev]);
     setCurrentEventIdState(newEvent.id);
-    triggerToast(`Created event "${newEvent.title}"!`, `Event ID: ${newEvent.id}`);
+    triggerToast(`Created celebration "${newEvent.title}"!`, `Passcode: ${newEvent.code}`);
     return newEvent;
   };
 
-  const updateEvent = (id: string, updates: Partial<EventItem>) => {
+  const updateEvent = async (id: string, updates: Partial<EventItem>) => {
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
     );
     triggerToast('Event details updated');
+
+    if (isSupabaseConfigured() && isUuid(id)) {
+      try {
+        const payload: any = {};
+        if (updates.title) payload.title = updates.title;
+        if (updates.date) payload.date = updates.date;
+        if (updates.venue) payload.venue = updates.venue;
+        if (updates.coverUrl) payload.cover_url = updates.coverUrl;
+        if (updates.votingPromptId) payload.voting_prompt_id = updates.votingPromptId;
+        await supabase.from('events').update(payload).eq('id', id);
+      } catch (e) {
+        console.warn('updateEvent error:', e);
+      }
+    }
   };
 
-  const deleteEvent = (id: string) => {
+  const deleteEvent = async (id: string) => {
     if (events.length <= 1) {
       triggerToast('Cannot delete the only event');
       return;
@@ -604,13 +775,22 @@ export function EventProvider({ children }: { children: ReactNode }) {
       setCurrentEventIdState(remaining[0].id);
     }
     triggerToast('Event deleted');
+
+    if (isSupabaseConfigured() && isUuid(id)) {
+      try {
+        await supabase.from('events').delete().eq('id', id);
+      } catch (e) {
+        console.warn('deleteEvent error:', e);
+      }
+    }
   };
 
   // Mini-Categories / Prompts Management for current event
-  const addPrompt = (label: string, icon = '🌿') => {
+  const addPrompt = async (label: string, icon = '🌿') => {
     if (!label.trim()) return;
+    const promptId = crypto.randomUUID();
     const newPrompt: PromptItem = {
-      id: `prompt-${Date.now()}`,
+      id: promptId,
       label: label.trim(),
       icon,
     };
@@ -625,9 +805,24 @@ export function EventProvider({ children }: { children: ReactNode }) {
       })
     );
     triggerToast(`Added category: "${label}"`, 'Immediately selectable by guests');
+
+    if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
+      try {
+        await supabase.from('prompts').insert([
+          {
+            id: promptId,
+            event_id: currentEvent.id,
+            label: label.trim(),
+            icon,
+          },
+        ]);
+      } catch (e) {
+        console.warn('addPrompt db error:', e);
+      }
+    }
   };
 
-  const deletePrompt = (promptId: string) => {
+  const deletePrompt = async (promptId: string) => {
     setEvents((prev) =>
       prev.map((ev) => {
         if (ev.id !== currentEvent.id) return ev;
@@ -643,6 +838,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
       })
     );
     triggerToast('Category removed');
+
+    if (isSupabaseConfigured() && isUuid(promptId)) {
+      try {
+        await supabase.from('prompts').delete().eq('id', promptId);
+      } catch (e) {
+        console.warn('deletePrompt db error:', e);
+      }
+    }
   };
 
   const setVotingCategory = (promptId: string) => {
@@ -654,6 +857,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
     );
     setVotingRound((v) => ({ ...v, promptId }));
     triggerToast('Live voting contest category updated');
+
+    if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
+      supabase
+        .from('events')
+        .update({ voting_prompt_id: promptId })
+        .eq('id', currentEvent.id)
+        .then();
+    }
   };
 
   // Guest & Reaction Handlers
@@ -705,10 +916,24 @@ export function EventProvider({ children }: { children: ReactNode }) {
     setTimeout(() => {
       setFloatingEmojis((prev) => prev.filter((item) => item.id !== id));
     }, 2600);
+
+    // Record reaction in Supabase
+    if (isSupabaseConfigured()) {
+      supabase
+        .from('reactions')
+        .insert([
+          {
+            reaction_type: emoji,
+            event_id: isUuid(currentEvent.id) ? currentEvent.id : null,
+            guest_id: hostUser?.id || null,
+          },
+        ])
+        .then();
+    }
   };
 
   // Memory Handlers
-  const addMemory = (newEntry: {
+  const addMemory = async (newEntry: {
     type: 'photo' | 'video';
     url: string;
     caption: string;
@@ -722,8 +947,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
       setGuestName(newEntry.guestName.trim());
     }
 
+    const memoryUuid = crypto.randomUUID();
+    const eventIdVal = isUuid(currentEvent.id) ? currentEvent.id : null;
+
     const created: MemoryItem = {
-      id: `mem-${Date.now()}`,
+      id: memoryUuid,
       eventId: currentEvent.id,
       guestName: finalAuthor,
       type: newEntry.type || 'photo',
@@ -757,9 +985,38 @@ export function EventProvider({ children }: { children: ReactNode }) {
         `Categorised under "${getPrompt(created.promptId).label}"`
       );
     }
+
+    // Insert into Supabase 'posts' table
+    if (isSupabaseConfigured()) {
+      try {
+        const { error: dbError } = await supabase.from('posts').insert([
+          {
+            id: memoryUuid,
+            event_id: eventIdVal,
+            guest_name: finalAuthor,
+            guest_id: hostUser?.id || null, // null safely bypasses foreign key check for guests
+            file_url: newEntry.url,
+            caption: created.caption,
+            category_tag: created.promptId,
+            media_type: created.type,
+            video_duration: created.duration || null,
+            is_private: created.isPrivate,
+            is_spotlight: false,
+            votes_count: 1,
+          },
+        ]);
+
+        if (dbError) {
+          console.error('Supabase posts insert error:', dbError);
+          triggerToast('Database sync notice', dbError.message);
+        }
+      } catch (err) {
+        console.error('addMemory Supabase error:', err);
+      }
+    }
   };
 
-  const addMultipleMemories = (entries: Array<{
+  const addMultipleMemories = async (entries: Array<{
     type: 'photo' | 'video';
     url: string;
     caption: string;
@@ -775,8 +1032,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
       setGuestName(firstCustomName);
     }
 
+    const eventIdVal = isUuid(currentEvent.id) ? currentEvent.id : null;
+
     const createdList: MemoryItem[] = entries.map((newEntry, idx) => ({
-      id: `mem-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+      id: crypto.randomUUID(),
       eventId: currentEvent.id,
       guestName: newEntry.guestName?.trim() || finalAuthor,
       type: newEntry.type || 'photo',
@@ -816,24 +1075,72 @@ export function EventProvider({ children }: { children: ReactNode }) {
         `Shared live to ${currentEvent.title}`
       );
     }
+
+    // Insert batch into Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('posts').insert(
+          createdList.map((c) => ({
+            id: c.id,
+            event_id: eventIdVal,
+            guest_name: c.guestName,
+            guest_id: hostUser?.id || null,
+            file_url: c.url,
+            caption: c.caption,
+            category_tag: c.promptId,
+            media_type: c.type,
+            video_duration: c.duration || null,
+            is_private: c.isPrivate,
+            is_spotlight: false,
+            votes_count: 1,
+          }))
+        );
+      } catch (err) {
+        console.error('addMultipleMemories Supabase error:', err);
+      }
+    }
   };
 
-  const toggleVote = (memoryId: string) => {
+  const toggleVote = async (memoryId: string) => {
+    const target = memories.find((m) => m.id === memoryId);
+    if (!target) return;
+    const nextVoted = !target.votedByMe;
+    const nextVotes = nextVoted ? target.votes + 1 : Math.max(0, target.votes - 1);
+
     setMemories((prev) =>
       prev.map((m) => {
         if (m.id !== memoryId) return m;
-        const nextVoted = !m.votedByMe;
         return {
           ...m,
           votedByMe: nextVoted,
-          votes: nextVoted ? m.votes + 1 : Math.max(0, m.votes - 1),
+          votes: nextVotes,
         };
       })
     );
     sendReaction('🥂');
+
+    if (isSupabaseConfigured() && isUuid(memoryId)) {
+      try {
+        await supabase.from('posts').update({ votes_count: nextVotes }).eq('id', memoryId);
+        if (nextVoted) {
+          await supabase.from('reactions').insert([
+            {
+              post_id: memoryId,
+              reaction_type: 'vote',
+              guest_id: hostUser?.id || null,
+              event_id: isUuid(currentEvent.id) ? currentEvent.id : null,
+            },
+          ]);
+        } else {
+          await supabase.from('reactions').delete().eq('post_id', memoryId);
+        }
+      } catch (e) {
+        console.warn('toggleVote db error:', e);
+      }
+    }
   };
 
-  const toggleSpotlight = (memoryId: string) => {
+  const toggleSpotlight = async (memoryId: string) => {
     const target = eventMemories.find((m) => m.id === memoryId);
     if (!target) return;
     if (target.isPrivate) {
@@ -841,15 +1148,29 @@ export function EventProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (spotlightId === memoryId) {
-      setSpotlightId(null);
-      triggerToast('Spotlight released', 'Resumed auto-rolling slideshow');
-    } else {
-      setSpotlightId(memoryId);
+    const nextSpotlight = spotlightId === memoryId ? null : memoryId;
+    setSpotlightId(nextSpotlight);
+
+    if (nextSpotlight) {
       triggerToast(
         `Spotlighted "${target.caption.slice(0, 32)}..."`,
         'Locked onto Live Slideshow & Projector Screen'
       );
+    } else {
+      triggerToast('Spotlight released', 'Resumed auto-rolling slideshow');
+    }
+
+    if (isSupabaseConfigured() && isUuid(memoryId)) {
+      try {
+        if (isUuid(currentEvent.id)) {
+          await supabase.from('posts').update({ is_spotlight: false }).eq('event_id', currentEvent.id);
+        }
+        if (nextSpotlight) {
+          await supabase.from('posts').update({ is_spotlight: true }).eq('id', memoryId);
+        }
+      } catch (e) {
+        console.warn('toggleSpotlight db error:', e);
+      }
     }
   };
 
@@ -864,34 +1185,65 @@ export function EventProvider({ children }: { children: ReactNode }) {
     setCurrentSlideIdx((prev) => (prev - 1 + Math.max(1, publicMemories.length)) % Math.max(1, publicMemories.length));
   };
 
-  const togglePrivacy = (memoryId: string) => {
+  const togglePrivacy = async (memoryId: string) => {
+    const target = memories.find((m) => m.id === memoryId);
+    if (!target) return;
+    const nextPriv = !target.isPrivate;
+
     setMemories((prev) =>
       prev.map((m) => {
         if (m.id !== memoryId) return m;
-        const nextPriv = !m.isPrivate;
         if (nextPriv && spotlightId === memoryId) {
           setSpotlightId(null);
         }
-        triggerToast(
-          nextPriv ? 'Moved to Couple’s Private Vault' : 'Restored to Public Slideshow',
-          nextPriv ? 'Hidden from guest gallery & projector' : 'Now visible on live screens'
-        );
         return { ...m, isPrivate: nextPriv };
       })
     );
+
+    triggerToast(
+      nextPriv ? 'Moved to Couple’s Private Vault' : 'Restored to Public Slideshow',
+      nextPriv ? 'Hidden from guest gallery & projector' : 'Now visible on live screens'
+    );
+
+    if (isSupabaseConfigured() && isUuid(memoryId)) {
+      try {
+        await supabase.from('posts').update({ is_private: nextPriv }).eq('id', memoryId);
+      } catch (e) {
+        console.warn('togglePrivacy db error:', e);
+      }
+    }
   };
 
-  const deleteMemory = (memoryId: string) => {
+  const deleteMemory = async (memoryId: string) => {
     if (spotlightId === memoryId) setSpotlightId(null);
     setMemories((prev) => prev.filter((m) => m.id !== memoryId));
     triggerToast('Memory deleted by host moderation');
+
+    if (isSupabaseConfigured() && isUuid(memoryId)) {
+      try {
+        await supabase.from('posts').delete().eq('id', memoryId);
+      } catch (e) {
+        console.warn('deleteMemory db error:', e);
+      }
+    }
   };
 
-  const deleteMultipleMemories = (ids: string[]) => {
+  const deleteMultipleMemories = async (ids: string[]) => {
     const idSet = new Set(ids);
     if (spotlightId && idSet.has(spotlightId)) setSpotlightId(null);
     setMemories((prev) => prev.filter((m) => !idSet.has(m.id)));
     triggerToast(`Deleted ${ids.length} memories`, 'Removed from gallery and projector');
+
+    if (isSupabaseConfigured()) {
+      const validUuids = ids.filter(isUuid);
+      if (validUuids.length > 0) {
+        try {
+          await supabase.from('posts').delete().in('id', validUuids);
+        } catch (e) {
+          console.warn('deleteMultipleMemories db error:', e);
+        }
+      }
+    }
   };
 
   // Downloads

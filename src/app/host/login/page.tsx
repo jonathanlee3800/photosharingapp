@@ -1,14 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Shield, Lock, Mail, ArrowRight, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import GoogleIcon from '@/components/GoogleIcon';
 
 export default function HostLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <HostLoginContent />
+    </Suspense>
+  );
+}
+
+function HostLoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     isHostLoggedIn,
     loginHost,
@@ -23,6 +32,14 @@ export default function HostLoginPage() {
   const [error, setError] = useState('');
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [loadingEmail, setLoadingEmail] = useState(false);
+
+  // Show error from OAuth callback redirect
+  useEffect(() => {
+    const callbackError = searchParams.get('error');
+    if (callbackError) {
+      setError('Google sign in failed. Please try again.');
+    }
+  }, [searchParams]);
 
   const handleGoogleLogin = async () => {
     setError('');
