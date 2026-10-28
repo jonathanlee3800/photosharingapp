@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import {
   INITIAL_MEMORIES,
   INITIAL_PROMPTS,
@@ -159,6 +159,23 @@ const isUuid = (str?: string): boolean => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 };
 
+// Converts a `posts` row (from a query or a realtime payload) into a MemoryItem
+const mapDbPost = (p: any): MemoryItem => ({
+  id: p.id,
+  eventId: p.event_id || undefined,
+  guestName: p.guest_name || 'Wedding Guest',
+  type: (p.media_type as 'photo' | 'video') || 'photo',
+  duration: p.video_duration || undefined,
+  // R2 objects are addressed by key so the public domain can change without breaking old posts
+  url: p.storage_key && isR2PublicUrlConfigured() ? mediaUrlFromKey(p.storage_key) : p.file_url,
+  caption: p.caption || '',
+  promptId: p.category_tag || 'fav-chapter',
+  isPrivate: Boolean(p.is_private),
+  votes: p.votes_count || 0,
+  votedByMe: false,
+  timestamp: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+});
+
 export function EventProvider({ children }: { children: ReactNode }) {
   // Host Auth State
   const [hostUser, setHostUser] = useState<HostUser | null>(null);
@@ -244,21 +261,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
 
       if (dbPosts) {
-        const mapped: MemoryItem[] = dbPosts.map((p: any) => ({
-          id: p.id,
-          eventId: p.event_id || undefined,
-          guestName: p.guest_name || 'Wedding Guest',
-          type: (p.media_type as 'photo' | 'video') || 'photo',
-          duration: p.video_duration || undefined,
-          // R2 objects are addressed by key so the public domain can change without breaking old posts
-          url: p.storage_key && isR2PublicUrlConfigured() ? mediaUrlFromKey(p.storage_key) : p.file_url,
-          caption: p.caption || '',
-          promptId: p.category_tag || 'fav-chapter',
-          isPrivate: Boolean(p.is_private),
-          votes: p.votes_count || 0,
-          votedByMe: false,
-          timestamp: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }));
+        const mapped: MemoryItem[] = dbPosts.map(mapDbPost);
 
         if (mapped.length > 0) {
           setMemories(mapped);
@@ -371,16 +374,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
     fetchEventsFromDb();
     fetchPostsFromDb();
 
-    // Set up Real-time Live Synchronization Channel
+    // Set up Real-time Live Synchronization Channel (posts are handled per event below)
     const channel = supabase
       .channel('realtime-photosharing-v1')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'posts' },
-        () => {
-          fetchPostsFromDb();
-        }
-      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'events' },
@@ -460,6 +456,71 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     }
   };
+
+  // Live uploads for the current event: apply each change in place instead of refetching everything
+  const eventChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !isUuid(currentEvent.id)) return;
+    const eventId = currentEvent.id;
+    const isHost = Boolean(hostUser);
+
+    const upsertPost = (row: any) => {
+      const incoming = mapDbPost(row);
+      setMemories((prev) => {
+        const existing = prev.find((m) => m.id === incoming.id);
+        if (!existing) return [incoming, ...prev];
+        // Keep this viewer's own vote state
+        return prev.map((m) => (m.id === incoming.id ? { ...incoming, votedByMe: m.votedByMe } : m));
+      });
+      if (row.is_spotlight) {
+        setSpotlightId(row.id);
+      } else {
+        setSpotlightId((current) => (current === row.id ? null : current));
+      }
+    };
+
+    const removePost = (id: string) => {
+      setMemories((prev) => prev.filter((m) => m.id !== id));
+      setSpotlightId((current) => (current === id ? null : current));
+    };
+
+    const channel = supabase
+      .channel(`event-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'posts', filter: `event_id=eq.${eventId}` },
+        (payload) => upsertPost(payload.new)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'posts', filter: `event_id=eq.${eventId}` },
+        (payload) => upsertPost(payload.new)
+      )
+      .on(
+        // DELETE payloads only carry the id (and cannot be filtered), so remove by id
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'posts' },
+        (payload) => {
+          if ((payload.old as any)?.id) removePost((payload.old as any).id);
+        }
+      )
+      .on(
+        // Guests stop receiving a post once it turns private, so the host announces it directly
+        'broadcast',
+        { event: 'post-hidden' },
+        ({ payload }) => {
+          if (!isHost && payload?.id) removePost(payload.id);
+        }
+      )
+      .subscribe();
+
+    eventChannelRef.current = channel;
+    return () => {
+      eventChannelRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [currentEvent.id, hostUser?.id]);
 
   // Filter memories for the current event
   const eventMemories = memories.filter(
@@ -1223,7 +1284,12 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
         if (isUuid(currentEvent.id)) {
-          await supabase.from('posts').update({ is_spotlight: false }).eq('event_id', currentEvent.id);
+          // Only clear the currently spotlighted post so we don't rewrite (and broadcast) every row
+          await supabase
+            .from('posts')
+            .update({ is_spotlight: false })
+            .eq('event_id', currentEvent.id)
+            .eq('is_spotlight', true);
         }
         if (nextSpotlight) {
           await supabase.from('posts').update({ is_spotlight: true }).eq('id', memoryId);
@@ -1268,6 +1334,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
         await supabase.from('posts').update({ is_private: nextPriv }).eq('id', memoryId);
+        if (nextPriv) {
+          eventChannelRef.current?.send({ type: 'broadcast', event: 'post-hidden', payload: { id: memoryId } });
+        }
       } catch (e) {
         console.warn('togglePrivacy db error:', e);
       }
