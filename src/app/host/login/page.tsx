@@ -27,7 +27,7 @@ function HostLoginContent() {
     logoutHost,
   } = useEvent();
 
-  const [email, setEmail] = useState('host@withlove.app');
+  const [email, setEmail] = useState('host@memoryaisle.app');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
   const [loadingGoogle, setLoadingGoogle] = useState(false);
@@ -72,7 +72,7 @@ function HostLoginContent() {
   };
 
   const handleQuickDemoLogin = () => {
-    loginHost('host@withlove.app', 'password123');
+    loginHost('host@memoryaisle.app', 'password123');
     router.push('/host/events');
   };
 
@@ -160,7 +160,7 @@ function HostLoginContent() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. simone@withlove.app"
+                    placeholder="e.g. simone@memoryaisle.app"
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                   />
                 </div>

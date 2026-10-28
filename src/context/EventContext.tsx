@@ -12,6 +12,12 @@ import {
 } from '@/lib/initialData';
 import { downloadMemoriesZip, downloadSinglePhoto } from '@/lib/downloadHelper';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import {
+  deleteMediaFromR2,
+  isR2PublicUrlConfigured,
+  mediaUrlFromKey,
+  uploadMediaToR2,
+} from '@/lib/mediaUpload';
 
 export interface FloatingEmoji {
   id: number;
@@ -45,7 +51,10 @@ interface EventContextType {
   logoutHost: () => Promise<void> | void;
 
   // Events Management
+  // All events (guests look these up by QR code / join code without logging in)
   events: EventItem[];
+  // Only the events owned by the logged-in host
+  hostEvents: EventItem[];
   currentEvent: EventItem;
   getEventById: (idOrCode: string) => EventItem | undefined;
   setCurrentEventId: (id: string, silent?: boolean) => void;
@@ -211,6 +220,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
               : INITIAL_PROMPTS,
           votingPromptId: e.voting_prompt_id || '',
           createdAt: e.created_at,
+          ownerId: e.owner_id,
         }));
         setEvents(mapped);
       }
@@ -240,7 +250,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
           guestName: p.guest_name || 'Wedding Guest',
           type: (p.media_type as 'photo' | 'video') || 'photo',
           duration: p.video_duration || undefined,
-          url: p.file_url,
+          // R2 objects are addressed by key so the public domain can change without breaking old posts
+          url: p.storage_key && isR2PublicUrlConfigured() ? mediaUrlFromKey(p.storage_key) : p.file_url,
           caption: p.caption || '',
           promptId: p.category_tag || 'fav-chapter',
           isPrivate: Boolean(p.is_private),
@@ -432,6 +443,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const hostEvents = hostUser ? events.filter((e) => e.ownerId === hostUser.id) : [];
+
   // Find active event
   const currentEvent =
     events.find((e) => e.id === currentEventId) || events[0] || INITIAL_EVENTS[0];
@@ -482,7 +495,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     publicMemories[currentSlideIdx % Math.max(1, publicMemories.length)] ||
     eventMemories[0] || {
       id: 'empty',
-      guestName: 'WithLove',
+      guestName: 'Memory Aisle',
       type: 'photo',
       url:
         currentEvent.coverUrl ||
@@ -735,6 +748,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       prompts: defaultPromptsList,
       votingPromptId: defaultPromptsList[0]?.id || '',
       createdAt: new Date().toISOString(),
+      ownerId: hostUser?.id,
     };
 
     setEvents((prev) => [newEvent, ...prev]);
@@ -778,6 +792,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     if (isSupabaseConfigured() && isUuid(id)) {
       try {
+        await deleteMediaFromR2({ eventId: id });
         await supabase.from('events').delete().eq('id', id);
       } catch (e) {
         console.warn('deleteEvent error:', e);
@@ -932,6 +947,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Uploads local media to R2 when configured; remote URLs (presets) pass through unchanged
+  const storeMedia = async (url: string, postId: string) => {
+    if (!isR2PublicUrlConfigured() || !isUuid(currentEvent.id)) {
+      return { url, key: null as string | null };
+    }
+    return uploadMediaToR2(url, currentEvent.id, postId);
+  };
+
   // Memory Handlers
   const addMemory = async (newEntry: {
     type: 'photo' | 'video';
@@ -986,6 +1009,20 @@ export function EventProvider({ children }: { children: ReactNode }) {
       );
     }
 
+    // Upload the file to R2 first, then store only its URL/key in the database
+    let stored: { url: string; key: string | null };
+    try {
+      stored = await storeMedia(newEntry.url, memoryUuid);
+    } catch (err: any) {
+      console.error('Media upload error:', err);
+      setMemories((prev) => prev.filter((m) => m.id !== memoryUuid));
+      triggerToast('Upload failed', err?.message || 'Please check your connection and try again');
+      return;
+    }
+    if (stored.url !== newEntry.url) {
+      setMemories((prev) => prev.map((m) => (m.id === memoryUuid ? { ...m, url: stored.url } : m)));
+    }
+
     // Insert into Supabase 'posts' table
     if (isSupabaseConfigured()) {
       try {
@@ -995,7 +1032,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
             event_id: eventIdVal,
             guest_name: finalAuthor,
             guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null, // null safely bypasses foreign key check for guests
-            file_url: newEntry.url,
+            file_url: stored.url,
+            storage_key: stored.key,
             caption: created.caption,
             category_tag: created.promptId,
             media_type: created.type,
@@ -1076,16 +1114,38 @@ export function EventProvider({ children }: { children: ReactNode }) {
       );
     }
 
+    // Upload all files to R2 in parallel; drop any that fail
+    const results = await Promise.allSettled(createdList.map((c) => storeMedia(c.url, c.id)));
+    const storedById = new Map<string, { url: string; key: string | null }>();
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') storedById.set(createdList[i].id, r.value);
+      else console.error('Media upload error:', r.reason);
+    });
+    const failedCount = createdList.length - storedById.size;
+    setMemories((prev) =>
+      prev
+        .filter((m) => !createdList.some((c) => c.id === m.id) || storedById.has(m.id))
+        .map((m) => (storedById.has(m.id) ? { ...m, url: storedById.get(m.id)!.url } : m))
+    );
+    if (failedCount > 0) {
+      triggerToast(
+        `${failedCount} of ${createdList.length} uploads failed`,
+        'Please check your connection and try those again'
+      );
+    }
+    const uploadedList = createdList.filter((c) => storedById.has(c.id));
+
     // Insert batch into Supabase
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && uploadedList.length > 0) {
       try {
         await supabase.from('posts').insert(
-          createdList.map((c) => ({
+          uploadedList.map((c) => ({
             id: c.id,
             event_id: eventIdVal,
             guest_name: c.guestName,
             guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null,
-            file_url: c.url,
+            file_url: storedById.get(c.id)!.url,
+            storage_key: storedById.get(c.id)!.key,
             caption: c.caption,
             category_tag: c.promptId,
             media_type: c.type,
@@ -1221,6 +1281,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
+        await deleteMediaFromR2({ postIds: [memoryId] });
         await supabase.from('posts').delete().eq('id', memoryId);
       } catch (e) {
         console.warn('deleteMemory db error:', e);
@@ -1238,6 +1299,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       const validUuids = ids.filter(isUuid);
       if (validUuids.length > 0) {
         try {
+          await deleteMediaFromR2({ postIds: validUuids });
           await supabase.from('posts').delete().in('id', validUuids);
         } catch (e) {
           console.warn('deleteMultipleMemories db error:', e);
@@ -1291,6 +1353,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         signUpHostWithPassword,
         logoutHost,
         events,
+        hostEvents,
         currentEvent,
         getEventById,
         setCurrentEventId,

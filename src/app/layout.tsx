@@ -23,7 +23,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'withlove — Wedding Photo Sharing Platform',
+  title: 'Memory Aisle — Wedding Photo Sharing Platform',
   description:
     'Web-based guest photo sharing, live rolling slideshow, voting rounds, and owner archive downloads.',
 };

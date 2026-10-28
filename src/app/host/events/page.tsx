@@ -20,7 +20,7 @@ import HostAuthGuard from '@/components/HostAuthGuard';
 
 export default function HostEventsPage() {
   const router = useRouter();
-  const { events, currentEvent, setCurrentEventId, deleteEvent, memories, hostUser } = useEvent();
+  const { hostEvents: events, currentEvent, setCurrentEventId, deleteEvent, memories, hostUser } = useEvent();
 
   const handleOpenEvent = (id: string) => {
     setCurrentEventId(id, true);

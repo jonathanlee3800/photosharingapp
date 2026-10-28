@@ -66,7 +66,7 @@ export default function HostSignUpPage() {
   };
 
   const handleDemoSignUp = () => {
-    loginHost('host@withlove.app', 'password123');
+    loginHost('host@memoryaisle.app', 'password123');
     router.push('/host/events');
   };
 

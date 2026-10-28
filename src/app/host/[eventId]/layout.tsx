@@ -14,9 +14,11 @@ export default function HostEventLayout({
 }) {
   const params = useParams();
   const rawEventId = typeof params?.eventId === 'string' ? decodeURIComponent(params.eventId) : '';
-  const { getEventById, currentEvent, setCurrentEventId } = useEvent();
+  const { getEventById, currentEvent, setCurrentEventId, hostUser } = useEvent();
 
-  const matchedEvent = rawEventId ? getEventById(rawEventId) : undefined;
+  // Hosts can only manage events they own
+  const foundEvent = rawEventId ? getEventById(rawEventId) : undefined;
+  const matchedEvent = foundEvent && foundEvent.ownerId === hostUser?.id ? foundEvent : undefined;
 
   useEffect(() => {
     if (matchedEvent && currentEvent.id !== matchedEvent.id) {

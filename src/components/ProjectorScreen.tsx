@@ -59,7 +59,7 @@ export default function ProjectorScreen({
 
   useEffect(() => {
     const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'https://withlove.app';
+      typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
     const targetUrl = `${origin}/user/${currentEvent.id}`;
     generateQrDataUrl(targetUrl, { width: 200, margin: 1 }).then((data) => {
       setQrDataUrl(data);

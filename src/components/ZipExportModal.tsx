@@ -41,7 +41,7 @@ export default function ZipExportModal() {
         <div className="flex items-start justify-between">
           <div>
             <span className="text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold flex items-center gap-1.5">
-              <FolderArchive className="w-3.5 h-3.5" /> withlove.app Archive Export
+              <FolderArchive className="w-3.5 h-3.5" /> memoryaisle.app Archive Export
             </span>
             <h3 className="font-serif text-3xl font-medium mt-1 text-[#1C2820]">
               All the love, ready to keep.

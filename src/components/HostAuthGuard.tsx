@@ -35,7 +35,7 @@ export default function HostAuthGuard({ children }: { children: ReactNode }) {
             </Link>
 
             <button
-              onClick={() => loginHost('host@withlove.app', 'password123')}
+              onClick={() => loginHost('host@memoryaisle.app', 'password123')}
               className="w-full py-3 px-6 rounded-xl border border-[#2D4A3A]/30 bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
             >
               <Sparkles className="w-3.5 h-3.5" />

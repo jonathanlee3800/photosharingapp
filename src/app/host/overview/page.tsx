@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation';
 import {
   LayoutGrid,
   Image as ImageIcon,
-  Heart,
-  Users,
   Lock,
   QrCode,
   Copy,
@@ -34,12 +32,11 @@ const EMOJI_OPTIONS = ['🌿', '🥂', '✨', '🕰️', '💃', '📸', '🎉',
 export default function HostOverviewPage() {
   const router = useRouter();
   const {
-    events,
+    hostEvents: events,
     currentEvent,
     setCurrentEventId,
     memories,
-    guestCount,
-    reactionCount,
+    publicMemories,
     privateMemories,
     prompts,
     votingRound,
@@ -61,7 +58,7 @@ export default function HostOverviewPage() {
 
   // Generate real QR code for current event
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://withlove.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
     const targetUrl = `${origin}/user/${currentEvent.id}`;
 
     generateQrDataUrl(targetUrl, { width: 400, margin: 2 }).then((data) => {
@@ -72,6 +69,10 @@ export default function HostOverviewPage() {
   const activeVotingPrompt =
     prompts.find((p) => p.id === votingRound.promptId) || prompts[0] || { id: 'default', label: 'Wedding Moments', icon: '🌿' };
 
+  // Live round stats for the current event, starting from zero
+  const votingCandidates = publicMemories.filter((m) => m.promptId === votingRound.promptId);
+  const votingTotal = votingCandidates.reduce((sum, m) => sum + (m.votes || 0), 0);
+
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
       const url = `${window.location.origin}/user/${currentEvent.id}`;
@@ -81,7 +82,7 @@ export default function HostOverviewPage() {
   };
 
   const handleDownloadQr = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://withlove.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
     const targetUrl = `${origin}/user/${currentEvent.id}`;
     downloadQrCode(targetUrl, currentEvent.title);
     triggerToast('Downloading high-res QR code PNG');
@@ -209,8 +210,8 @@ export default function HostOverviewPage() {
           </Link>
         </div>
 
-        {/* 4 Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
               <span className="text-xs font-semibold">Memories Collected</span>
@@ -222,32 +223,6 @@ export default function HostOverviewPage() {
             <div className="text-[11px] text-[#1C2820]/60 font-medium">
               {memories.filter((m) => m.type === 'photo').length} photos ·{' '}
               {memories.filter((m) => m.type === 'video').length} video well-wishes
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
-              <span className="text-xs font-semibold">Guests Joined</span>
-              <Users className="w-4 h-4 text-[#2D4A3A]" />
-            </div>
-            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
-              {guestCount}
-            </div>
-            <div className="text-[11px] text-[#1C2820]/60 font-medium">
-              Active participants across mobile & web
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
-              <span className="text-xs font-semibold">Little Loves Sent</span>
-              <Heart className="w-4 h-4 text-[#2D4A3A]" />
-            </div>
-            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
-              {reactionCount.toLocaleString()}
-            </div>
-            <div className="text-[11px] text-[#1C2820]/60 font-medium">
-              Reactions shared across guest feeds
             </div>
           </div>
 
@@ -356,19 +331,19 @@ export default function HostOverviewPage() {
               <div className="grid grid-cols-3 gap-3 border-y border-[#1C2820]/10 py-4">
                 <div>
                   <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
-                    02:14
+                    00:00
                   </div>
                   <div className="text-[10px] text-[#1C2820]/60 font-medium">remaining</div>
                 </div>
                 <div>
                   <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
-                    52
+                    {votingTotal}
                   </div>
-                  <div className="text-[10px] text-[#1C2820]/60 font-medium">guests voted</div>
+                  <div className="text-[10px] text-[#1C2820]/60 font-medium">votes</div>
                 </div>
                 <div>
                   <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
-                    {memories.filter((m) => m.promptId === votingRound.promptId).length || 4}
+                    {votingCandidates.length}
                   </div>
                   <div className="text-[10px] text-[#1C2820]/60 font-medium">candidates</div>
                 </div>

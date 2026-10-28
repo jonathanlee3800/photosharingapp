@@ -105,7 +105,7 @@ export default function CreateEventPage() {
 
   // Generate QR code whenever uniqueEventId changes
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://withlove.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
     const cleanId = uniqueEventId.trim().toLowerCase() || 'evt-new';
     const targetUrl = `${origin}/user/${cleanId}`;
 

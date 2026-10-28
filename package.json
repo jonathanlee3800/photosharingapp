@@ -1,5 +1,5 @@
 {
-  "name": "withlove-photosharing",
+  "name": "memory-aisle",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1158.0",
+    "@aws-sdk/s3-request-presigner": "^3.1158.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.49.1",
     "canvas-confetti": "^1.9.4",

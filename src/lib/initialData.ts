@@ -38,6 +38,7 @@ export interface EventItem {
   prompts: PromptItem[];
   votingPromptId: string;
   createdAt: string;
+  ownerId?: string;
 }
 
 export interface HostUser {

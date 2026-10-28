@@ -1,5 +1,5 @@
 -- ==============================================================================
--- WITHLOVE PHOTO SHARING - FULL DECLARATIVE DATABASE SCHEMA
+-- MEMORY AISLE - FULL DECLARATIVE DATABASE SCHEMA
 -- ==============================================================================
 
 -- 1. EXTENSIONS

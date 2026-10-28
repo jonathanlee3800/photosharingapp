@@ -1,5 +1,5 @@
 -- ==============================================================================
--- WITHLOVE PHOTO SHARING - SUPABASE INITIAL SCHEMA MIGRATION
+-- MEMORY AISLE - SUPABASE INITIAL SCHEMA MIGRATION
 -- ==============================================================================
 
 -- 1. EXTENSIONS

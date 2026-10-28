@@ -1,6 +1,6 @@
 # Supabase Migrations & Database Guide
 
-This directory contains the database migration files and the declarative schema for the WithLove Photo Sharing application.
+This directory contains the database migration files and the declarative schema for the Memory Aisle application.
 
 ## Directory Structure
 
