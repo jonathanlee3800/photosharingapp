@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Plus } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
 
@@ -14,17 +14,28 @@ export default function HostEventLayout({
 }) {
   const params = useParams();
   const rawEventId = typeof params?.eventId === 'string' ? decodeURIComponent(params.eventId) : '';
-  const { getEventById, currentEvent, setCurrentEventId, hostUser } = useEvent();
+  const { getEventById, currentEvent, setCurrentEventId, hostUser, isAuthLoading, eventsLoaded } =
+    useEvent();
 
   // Hosts can only manage events they own
   const foundEvent = rawEventId ? getEventById(rawEventId) : undefined;
   const matchedEvent = foundEvent && foundEvent.ownerId === hostUser?.id ? foundEvent : undefined;
+  const ownedByAnotherAccount = Boolean(foundEvent && hostUser && foundEvent.ownerId && !matchedEvent);
 
   useEffect(() => {
     if (matchedEvent && currentEvent.id !== matchedEvent.id) {
       setCurrentEventId(matchedEvent.id, true);
     }
   }, [matchedEvent, currentEvent.id, setCurrentEventId]);
+
+  // Wait for the host session before deciding the event is missing
+  if (isAuthLoading || (!matchedEvent && !eventsLoaded)) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-6 h-6 animate-spin text-[#2D4A3A]" />
+      </div>
+    );
+  }
 
   if (!matchedEvent) {
     return (
@@ -36,14 +47,23 @@ export default function HostEventLayout({
             </div>
             <div className="space-y-1.5">
               <h1 className="font-serif text-3xl font-bold text-[#1C2820]">
-                Event Not Found
+                {ownedByAnotherAccount ? 'Not Your Event' : 'Event Not Found'}
               </h1>
               <p className="text-xs text-[#1C2820]/65 leading-relaxed">
-                No celebration matches the event ID{' '}
-                <span className="font-mono font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">
-                  {rawEventId}
-                </span>
-                .
+                {ownedByAnotherAccount ? (
+                  <>
+                    &ldquo;{foundEvent?.title}&rdquo; belongs to a different host account. You are signed in as{' '}
+                    <span className="font-bold text-[#1C2820]">{hostUser?.email}</span>.
+                  </>
+                ) : (
+                  <>
+                    No celebration matches the event ID{' '}
+                    <span className="font-mono font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">
+                      {rawEventId}
+                    </span>
+                    .
+                  </>
+                )}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

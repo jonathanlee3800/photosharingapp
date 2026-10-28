@@ -145,7 +145,7 @@ export default function ProjectorScreen({
       <div className="flex-1 w-full relative flex items-center justify-center z-10 px-6 sm:px-12 min-h-0">
         {/* Left Ghost Slide */}
         <div className="hidden lg:block absolute left-[-8%] w-[35%] h-[65%] opacity-25 blur-[2px] scale-90 rounded-[2.5rem] overflow-hidden border border-white/10 transition-all duration-700 ease-in-out">
-          {prevMemory.url.startsWith('data:video') ? (
+          {prevMemory.type === 'video' ? (
             <video src={prevMemory.url} muted playsInline className="w-full h-full object-cover" />
           ) : (
             <img
@@ -158,7 +158,7 @@ export default function ProjectorScreen({
 
         {/* Center Primary Slide */}
         <div className="relative w-full max-w-4xl h-[52vh] sm:h-[58vh] rounded-[2.5rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.85)] border-[6px] border-[#25362A] z-20 transition-all duration-700 ease-in-out bg-black/40">
-          {activeMemory.url.startsWith('data:video') ? (
+          {activeMemory.type === 'video' ? (
             <video
               src={activeMemory.url}
               autoPlay
@@ -186,7 +186,7 @@ export default function ProjectorScreen({
 
         {/* Right Ghost Slide */}
         <div className="hidden lg:block absolute right-[-8%] w-[35%] h-[65%] opacity-25 blur-[2px] scale-90 rounded-[2.5rem] overflow-hidden border border-white/10 transition-all duration-700 ease-in-out">
-          {nextMemory.url.startsWith('data:video') ? (
+          {nextMemory.type === 'video' ? (
             <video src={nextMemory.url} muted playsInline className="w-full h-full object-cover" />
           ) : (
             <img

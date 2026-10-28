@@ -8,18 +8,18 @@ import { useEvent } from '@/context/EventContext';
 
 export default function JoinPage() {
   const router = useRouter();
-  const { currentEvent, guestName, joinCelebration } = useEvent();
+  const { currentEvent, guestName, joinCelebration, hostUser } = useEvent();
   const [nameInput, setNameInput] = useState(guestName || '');
   const [nameError, setNameError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) {
       setNameError('Please enter your name so the couple knows who is sharing.');
       return;
     }
     setNameError('');
-    joinCelebration(nameInput.trim());
+    await joinCelebration(nameInput.trim());
     router.push(`/user/${currentEvent.id}/gallery`);
   };
 
@@ -51,6 +51,13 @@ export default function JoinPage() {
             Share your candid photos, video toasts, and well-wishes directly from your mobile browser. No app download needed.
           </p>
         </div>
+
+        {hostUser && (
+          <div className="p-3 rounded-xl bg-[#E9EFEA] border border-[#2D4A3A]/20 text-[11px] text-[#1C2820]/75 font-medium leading-relaxed">
+            You&rsquo;re signed in as host <span className="font-bold">{hostUser.email}</span>. Joining as a
+            guest will sign you out of the host portal.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

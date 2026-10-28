@@ -345,7 +345,7 @@ export default function GalleryPage() {
               }`}
             >
               <div className="relative aspect-[4/3] sm:aspect-[4/5] overflow-hidden bg-black/5">
-                {item.url.startsWith('data:video') ? (
+                {item.type === 'video' ? (
                   <video
                     src={item.url}
                     muted

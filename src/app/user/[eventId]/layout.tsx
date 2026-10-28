@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
 export default function UserEventLayout({
@@ -14,7 +13,7 @@ export default function UserEventLayout({
   const params = useParams();
   const rawEventId =
     typeof params?.eventId === 'string' ? decodeURIComponent(params.eventId) : '';
-  const { getEventById, currentEvent, setCurrentEventId } = useEvent();
+  const { getEventById, currentEvent, setCurrentEventId, eventsLoaded } = useEvent();
 
   const matchedEvent = rawEventId ? getEventById(rawEventId) : undefined;
 
@@ -23,6 +22,15 @@ export default function UserEventLayout({
       setCurrentEventId(matchedEvent.id, true);
     }
   }, [matchedEvent, currentEvent.id, setCurrentEventId]);
+
+  // A fresh phone (e.g. scanning the QR code) has no cached events yet, so wait for the database
+  if (!matchedEvent && !eventsLoaded) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-[#2D4A3A]" />
+      </div>
+    );
+  }
 
   if (!matchedEvent) {
     return (
@@ -43,13 +51,6 @@ export default function UserEventLayout({
               . Please check your table QR code or ask the hosts for the right link.
             </p>
           </div>
-          <Link
-            href="/"
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Home</span>
-          </Link>
         </div>
       </div>
     );

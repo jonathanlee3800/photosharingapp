@@ -14,10 +14,11 @@ import { useEvent } from '@/context/EventContext';
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
-  const { currentEvent } = useEvent();
+  const { currentEvent, isHostLoggedIn } = useEvent();
 
-  // Hide on full projector screen or display screen
+  // Guest tab bar only: hidden for hosts and on the full projector / display screen
   if (
+    isHostLoggedIn ||
     pathname === '/projector' ||
     pathname === '/display' ||
     pathname?.endsWith('/projector')

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, Lock, Mail, ArrowRight, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
+import { Shield, Lock, Mail, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import GoogleIcon from '@/components/GoogleIcon';
 
@@ -20,15 +20,18 @@ function HostLoginContent() {
   const searchParams = useSearchParams();
   const {
     isHostLoggedIn,
-    loginHost,
     loginHostWithPassword,
     loginWithGoogle,
     hostUser,
     logoutHost,
   } = useEvent();
 
-  const [email, setEmail] = useState('host@memoryaisle.app');
-  const [password, setPassword] = useState('password123');
+  // Where to go after signing in; only same-site host paths are allowed
+  const nextParam = searchParams.get('next') || '';
+  const next = nextParam.startsWith('/host') ? nextParam : '/host/events';
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [loadingEmail, setLoadingEmail] = useState(false);
@@ -44,7 +47,7 @@ function HostLoginContent() {
   const handleGoogleLogin = async () => {
     setError('');
     setLoadingGoogle(true);
-    const { error: googleError } = await loginWithGoogle();
+    const { error: googleError } = await loginWithGoogle(next);
     if (googleError) {
       setError(googleError);
       setLoadingGoogle(false);
@@ -65,15 +68,12 @@ function HostLoginContent() {
     setLoadingEmail(false);
 
     if (result.success) {
-      router.push('/host/events');
+      // Full navigation so the server-side /host guard sees the new session cookie
+      router.replace(next);
+      router.refresh();
     } else {
       setError(result.error || 'Failed to sign in. Please verify your credentials.');
     }
-  };
-
-  const handleQuickDemoLogin = () => {
-    loginHost('host@memoryaisle.app', 'password123');
-    router.push('/host/events');
   };
 
   return (
@@ -103,10 +103,10 @@ function HostLoginContent() {
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href="/host/events"
+                href={next}
                 className="flex-1 py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold shadow-sm"
               >
-                Go to Events List
+                Continue to Host Portal
               </Link>
               <button
                 type="button"
@@ -196,18 +196,6 @@ function HostLoginContent() {
                   </>
                 )}
               </button>
-
-              {/* Quick Demo Login Option */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleQuickDemoLogin}
-                  className="w-full py-3 rounded-xl border border-[#2D4A3A]/30 bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                  <span>1-Click Host Demo Sign In</span>
-                </button>
-              </div>
             </form>
           </div>
         )}
@@ -220,10 +208,7 @@ function HostLoginContent() {
             </Link>
           </div>
           <div>
-            <span>Are you a guest attending an event? </span>
-            <Link href="/" className="font-medium text-[#1C2820]/75 hover:underline">
-              Join Celebration
-            </Link>
+            Attending as a guest? Scan the QR code at your table or open the link from your hosts.
           </div>
         </div>
       </div>

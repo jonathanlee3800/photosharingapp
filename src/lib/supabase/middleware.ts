@@ -32,13 +32,42 @@ export async function updateSession(request: NextRequest) {
   // hard to debug issues with users being randomly logged out.
 
   // Refresh the auth token if it exists (keeps the session alive)
-  await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // NOTE: We do NOT redirect unauthenticated users here because
-  // this app allows anonymous guests to browse galleries, upload
-  // photos, and vote without logging in. Only the /host/* pages
-  // require authentication, and that is handled by the
-  // HostAuthGuard component on the client side.
+  const { pathname, search } = request.nextUrl
+
+  // The site root belongs to hosts. Guests only arrive via an event link / QR code (/user/<eventId>).
+  if (pathname === '/') {
+    const target = request.nextUrl.clone()
+    const code = request.nextUrl.searchParams.get('code')
+    target.search = ''
+    if (code) {
+      // Legacy "/?code=XYZ" links: event ids, join codes and slugs all resolve under /user/<x>
+      target.pathname = `/user/${encodeURIComponent(code)}`
+    } else {
+      target.pathname = user ? '/host/events' : '/host/login'
+    }
+    const redirect = NextResponse.redirect(target)
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+    return redirect
+  }
+
+  // Guests never need to log in, so only the host portal is protected.
+  // The sign in / sign up pages themselves stay public.
+  const isHostArea = pathname === '/host' || pathname.startsWith('/host/')
+  const isPublicHostPage = pathname === '/host/login' || pathname === '/host/signup'
+
+  if (isHostArea && !isPublicHostPage && !user) {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/host/login'
+    loginUrl.search = `?next=${encodeURIComponent(pathname + search)}`
+    const redirect = NextResponse.redirect(loginUrl)
+    // Carry over any refreshed auth cookies
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+    return redirect
+  }
 
   return supabaseResponse
 }

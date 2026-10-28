@@ -22,6 +22,7 @@ import {
   MapPin,
   Tag,
   ArrowLeft,
+  Play,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
@@ -43,7 +44,8 @@ export default function HostOverviewPage() {
     setVotingCategory,
     activeSlideMemory,
     spotlightId,
-    setSpotlightId,
+    toggleSpotlight,
+    resumeSlideshow,
     cycleNextSlide,
     addPrompt,
     deletePrompt,
@@ -99,6 +101,21 @@ export default function HostOverviewPage() {
   return (
     <HostAuthGuard>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+        <div className="space-y-4">
+        {/* Back to All Events */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/host/events"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-[#1C2820]/15 text-xs font-bold text-[#2D4A3A] hover:bg-[#E9EFEA] transition-all shadow-sm group"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+            <span>All Events ({events.length})</span>
+          </Link>
+          <span className="text-xs text-[#1C2820]/50 font-medium">
+            Managing: <span className="font-bold text-[#1C2820]">{currentEvent.title}</span>
+          </span>
+        </div>
+
         {/* Sub-navigation bar for Host */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1C2820]/10 pb-5">
           <div className="flex flex-wrap items-center gap-2">
@@ -113,12 +130,6 @@ export default function HostOverviewPage() {
               className="px-4 py-2 rounded-xl text-[#1C2820]/70 hover:text-[#1C2820] hover:bg-black/5 text-xs font-semibold transition-colors"
             >
               Photos & Videos ({memories.length})
-            </Link>
-            <Link
-              href="/host/events"
-              className="px-4 py-2 rounded-xl text-[#1C2820]/70 hover:text-[#1C2820] hover:bg-black/5 text-xs font-semibold transition-colors"
-            >
-              All Events ({events.length})
             </Link>
             <Link
               href="/host/events/new"
@@ -166,19 +177,6 @@ export default function HostOverviewPage() {
             </button>
           </div>
         </div>
-
-        {/* Back to Events Breadcrumb */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/host/events"
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-[#1C2820]/15 text-xs font-bold text-[#2D4A3A] hover:bg-[#E9EFEA] transition-all shadow-sm group"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to All Events</span>
-          </Link>
-          <span className="text-xs text-[#1C2820]/50 font-medium">
-            Managing: <span className="font-bold text-[#1C2820]">{currentEvent.title}</span>
-          </span>
         </div>
 
         {/* Hero Intro */}
@@ -506,18 +504,17 @@ export default function HostOverviewPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (spotlightId) {
-                    setSpotlightId(null);
-                    triggerToast('Spotlight released');
-                  } else {
-                    setSpotlightId(activeSlideMemory.id);
-                    triggerToast('Pinned to big screen');
-                  }
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold transition-all shadow-sm active:scale-95"
+                onClick={() => (spotlightId ? resumeSlideshow() : toggleSpotlight(activeSlideMemory.id))}
+                className="flex-1 py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
               >
-                {spotlightId ? 'Release Spotlight' : 'Lock on Screen'}
+                {spotlightId ? (
+                  <>
+                    <Play className="w-3.5 h-3.5" />
+                    <span>Resume Slideshow</span>
+                  </>
+                ) : (
+                  'Lock on Screen'
+                )}
               </button>
             </div>
           </div>

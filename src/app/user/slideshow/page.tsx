@@ -108,7 +108,7 @@ export default function SlideshowPage() {
       <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-1 flex flex-col md:flex-row items-center justify-center gap-8 relative z-20">
         {/* Photo / Video Container */}
         <div className="w-full md:w-1/2 aspect-[4/3] sm:aspect-square md:aspect-[4/5] max-h-[520px] rounded-3xl overflow-hidden shadow-2xl border-4 border-[#25362A] relative shrink-0 bg-black/40">
-          {activeSlideMemory.url.startsWith('data:video') ? (
+          {activeSlideMemory.type === 'video' ? (
             <video
               src={activeSlideMemory.url}
               autoPlay

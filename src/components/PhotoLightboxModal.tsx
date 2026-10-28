@@ -170,9 +170,9 @@ export default function PhotoLightboxModal({
           className={`relative max-w-5xl max-h-[65vh] sm:max-h-[75vh] w-full h-full flex items-center justify-center overflow-auto cursor-pointer select-none transition-transform duration-300 ${
             isZoomed ? 'scale-150 sm:scale-125' : 'scale-100'
           }`}
-          onClick={() => !memory.url.startsWith('data:video') && setIsZoomed((z) => !z)}
+          onClick={() => memory.type !== 'video' && setIsZoomed((z) => !z)}
         >
-          {memory.url.startsWith('data:video') ? (
+          {memory.type === 'video' ? (
             <video
               src={memory.url}
               controls

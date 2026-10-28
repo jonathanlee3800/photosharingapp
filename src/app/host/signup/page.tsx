@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Shield, Lock, Mail, User, ArrowRight, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
+import { Shield, Lock, Mail, User, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import GoogleIcon from '@/components/GoogleIcon';
 
@@ -14,7 +14,6 @@ export default function HostSignUpPage() {
     hostUser,
     loginWithGoogle,
     signUpHostWithPassword,
-    loginHost,
   } = useEvent();
 
   const [fullName, setFullName] = useState('');
@@ -63,11 +62,6 @@ export default function HostSignUpPage() {
     } else {
       router.push('/host/events');
     }
-  };
-
-  const handleDemoSignUp = () => {
-    loginHost('host@memoryaisle.app', 'password123');
-    router.push('/host/events');
   };
 
   return (
@@ -218,18 +212,6 @@ export default function HostSignUpPage() {
                   </>
                 )}
               </button>
-
-              {/* Demo Sign In Option */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={handleDemoSignUp}
-                  className="w-full py-2.5 rounded-xl border border-[#2D4A3A]/25 bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-semibold transition-all flex items-center justify-center gap-2"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Instant Demo Mode (No Registration)</span>
-                </button>
-              </div>
             </form>
           </div>
         )}
@@ -243,10 +225,7 @@ export default function HostSignUpPage() {
             </Link>
           </div>
           <div>
-            <span>Attending as a guest? </span>
-            <Link href="/" className="font-medium text-[#1C2820]/75 hover:underline">
-              Join Celebration
-            </Link>
+            Attending as a guest? Scan the QR code at your table or open the link from your hosts.
           </div>
         </div>
       </div>

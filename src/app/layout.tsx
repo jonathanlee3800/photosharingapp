@@ -4,6 +4,7 @@ import './globals.css';
 import { EventProvider } from '@/context/EventContext';
 import Navbar from '@/components/Navbar';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import GuestFooter from '@/components/GuestFooter';
 import ToastNotification from '@/components/ToastNotification';
 import ZipExportModal from '@/components/ZipExportModal';
 
@@ -48,6 +49,7 @@ export default function RootLayout({
           <div className="flex-1 flex flex-col">
             {children}
           </div>
+          <GuestFooter />
           <MobileBottomNav />
           <ToastNotification />
           <ZipExportModal />

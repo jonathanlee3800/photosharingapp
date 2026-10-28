@@ -37,11 +37,11 @@ export interface VotingRound {
 }
 
 interface EventContextType {
-  // Host Auth
+  // Host Auth (source of truth: the Supabase Auth session only)
   isHostLoggedIn: boolean;
+  isAuthLoading: boolean;
   hostUser: HostUser | null;
-  loginHost: (email: string, pass: string) => boolean;
-  loginWithGoogle: () => Promise<{ error?: string }>;
+  loginWithGoogle: (next?: string) => Promise<{ error?: string }>;
   loginHostWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signUpHostWithPassword: (
     email: string,
@@ -53,6 +53,8 @@ interface EventContextType {
   // Events Management
   // All events (guests look these up by QR code / join code without logging in)
   events: EventItem[];
+  // True once the first events query from the database has finished (success or failure)
+  eventsLoaded: boolean;
   // Only the events owned by the logged-in host
   hostEvents: EventItem[];
   currentEvent: EventItem;
@@ -70,10 +72,12 @@ interface EventContextType {
   updateEvent: (id: string, updates: Partial<EventItem>) => void;
   deleteEvent: (id: string) => void;
 
-  // Guest State
+  // Guest State (per-browser identity, independent of the host session)
+  guestId: string;
   guestName: string;
   hasJoined: boolean;
   setGuestName: (name: string) => void;
+  leaveAsGuest: () => void;
   guestCount: number;
   reactionCount: number;
 
@@ -88,7 +92,7 @@ interface EventContextType {
   setVotingCategory: (promptId: string) => void;
 
   // Actions
-  joinCelebration: (name: string) => void;
+  joinCelebration: (name: string) => Promise<void>;
   switchEventByCode: (code: string) => boolean;
   addMemory: (entry: {
     type: 'photo' | 'video';
@@ -111,6 +115,7 @@ interface EventContextType {
   toggleVote: (memoryId: string) => Promise<void>;
   togglePrivacy: (memoryId: string) => Promise<void>;
   toggleSpotlight: (memoryId: string) => Promise<void>;
+  resumeSlideshow: () => Promise<void>;
   deleteMemory: (memoryId: string) => Promise<void>;
   deleteMultipleMemories: (ids: string[]) => Promise<void>;
 
@@ -151,6 +156,8 @@ const STORAGE_KEY_EVENTS = 'withlove_events_v2';
 const STORAGE_KEY_CURRENT_EVENT_ID = 'withlove_current_event_id';
 const STORAGE_KEY_MEMORIES = 'withlove_memories_v2';
 const STORAGE_KEY_GUEST = 'withlove_guest_name';
+const STORAGE_KEY_GUEST_ID = 'withlove_guest_id';
+// Legacy cached host session; no longer trusted, only cleared on load
 const STORAGE_KEY_HOST_AUTH = 'withlove_host_user_auth';
 const STORAGE_KEY_REACTIONS = 'withlove_reactions_count';
 
@@ -158,6 +165,17 @@ const isUuid = (str?: string): boolean => {
   if (!str) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 };
+
+const toHostUser = (user: any): HostUser => ({
+  id: user.id,
+  name:
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split('@')[0] ||
+    'Host User',
+  email: user.email || '',
+  avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+});
 
 // Converts a `posts` row (from a query or a realtime payload) into a MemoryItem
 const mapDbPost = (p: any): MemoryItem => ({
@@ -179,13 +197,16 @@ const mapDbPost = (p: any): MemoryItem => ({
 export function EventProvider({ children }: { children: ReactNode }) {
   // Host Auth State
   const [hostUser, setHostUser] = useState<HostUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(isSupabaseConfigured());
 
   // Events State
   const [events, setEvents] = useState<EventItem[]>(INITIAL_EVENTS);
+  const [eventsLoaded, setEventsLoaded] = useState<boolean>(!isSupabaseConfigured());
   const [currentEventId, setCurrentEventIdState] = useState<string>(INITIAL_EVENTS[0].id);
 
   // Guest State
-  const [guestName, setGuestNameState] = useState<string>('Clara Vance');
+  const [guestId, setGuestId] = useState<string>('');
+  const [guestName, setGuestNameState] = useState<string>('');
   const [hasJoined, setHasJoined] = useState<boolean>(false);
   const [guestCount, setGuestCount] = useState<number>(148);
   const [reactionCount, setReactionCount] = useState<number>(1240);
@@ -243,6 +264,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.warn('Error fetching events from Supabase:', err);
+    } finally {
+      setEventsLoaded(true);
     }
   }, []);
 
@@ -281,10 +304,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const savedAuth = localStorage.getItem(STORAGE_KEY_HOST_AUTH);
-      if (savedAuth) {
-        setHostUser(JSON.parse(savedAuth));
-      }
+      // Host identity now comes only from Supabase Auth; drop any stale cached copy
+      localStorage.removeItem(STORAGE_KEY_HOST_AUTH);
 
       const savedEvents = localStorage.getItem(STORAGE_KEY_EVENTS);
       if (savedEvents) {
@@ -310,6 +331,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
         setHasJoined(true);
       }
 
+      const savedGuestId = localStorage.getItem(STORAGE_KEY_GUEST_ID);
+      if (savedGuestId) {
+        setGuestId(savedGuestId);
+      }
+
       const savedReactions = localStorage.getItem(STORAGE_KEY_REACTIONS);
       if (savedReactions) {
         setReactionCount(Number(savedReactions));
@@ -323,52 +349,31 @@ export function EventProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
 
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // One role per browser: an active host session always replaces the guest identity
+    // (covers email login, sign up and the Google OAuth redirect).
+    const applySession = (session: { user: any } | null) => {
       if (session?.user) {
-        const user: HostUser = {
-          id: session.user.id,
-          name:
-            session.user.user_metadata?.full_name ||
-            session.user.user_metadata?.name ||
-            session.user.email?.split('@')[0] ||
-            'Host User',
-          email: session.user.email || '',
-          avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
-        };
-        setHostUser(user);
+        setHostUser(toHostUser(session.user));
+        setGuestNameState('');
+        setGuestId('');
+        setHasJoined(false);
         try {
-          localStorage.setItem(STORAGE_KEY_HOST_AUTH, JSON.stringify(user));
+          localStorage.removeItem(STORAGE_KEY_GUEST);
+          localStorage.removeItem(STORAGE_KEY_GUEST_ID);
         } catch (e) {}
+      } else {
+        setHostUser(null);
       }
-    });
+      setIsAuthLoading(false);
+    };
 
-    // Listen to Auth State Changes
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => applySession(session));
+
+    // Listen to Auth State Changes (sign in/out in this or another tab, token refresh)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        const user: HostUser = {
-          id: session.user.id,
-          name:
-            session.user.user_metadata?.full_name ||
-            session.user.user_metadata?.name ||
-            session.user.email?.split('@')[0] ||
-            'Host User',
-          email: session.user.email || '',
-          avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
-        };
-        setHostUser(user);
-        try {
-          localStorage.setItem(STORAGE_KEY_HOST_AUTH, JSON.stringify(user));
-        } catch (e) {}
-      } else if (event === 'SIGNED_OUT') {
-        setHostUser(null);
-        try {
-          localStorage.removeItem(STORAGE_KEY_HOST_AUTH);
-        } catch (e) {}
-      }
-    });
+    } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
 
     // Pull from DB
     fetchEventsFromDb();
@@ -466,13 +471,43 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const isHost = Boolean(hostUser);
 
     const upsertPost = (row: any) => {
+      // Postgres leaves large unchanged (TOASTed) columns out of UPDATE payloads, e.g. legacy
+      // base64 `file_url`s, so a missing column means "unchanged", not "empty".
+      const urlMissing = row.file_url === undefined && !row.storage_key;
       const incoming = mapDbPost(row);
+      let needsFullRow = false;
       setMemories((prev) => {
         const existing = prev.find((m) => m.id === incoming.id);
-        if (!existing) return [incoming, ...prev];
-        // Keep this viewer's own vote state
-        return prev.map((m) => (m.id === incoming.id ? { ...incoming, votedByMe: m.votedByMe } : m));
+        if (!existing) {
+          if (urlMissing) {
+            needsFullRow = true;
+            return prev;
+          }
+          return [incoming, ...prev];
+        }
+        return prev.map((m) =>
+          m.id === incoming.id
+            ? {
+                ...incoming,
+                url: urlMissing ? m.url : incoming.url,
+                caption: row.caption === undefined ? m.caption : incoming.caption,
+                // Keep this viewer's own vote state
+                votedByMe: m.votedByMe,
+              }
+            : m
+        );
       });
+      if (needsFullRow) {
+        // A post we don't have yet arrived without its file; load the complete row
+        supabase
+          .from('posts')
+          .select('*')
+          .eq('id', row.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setMemories((prev) => (prev.some((m) => m.id === data.id) ? prev : [mapDbPost(data), ...prev]));
+          });
+      }
       if (row.is_spotlight) {
         setSpotlightId(row.id);
       } else {
@@ -573,22 +608,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   // Host Auth Functions
-  const loginHost = (email: string, pass: string): boolean => {
-    if (!email.trim()) return false;
-    const user: HostUser = {
-      id: `host-${Date.now()}`,
-      name: email.split('@')[0].replace(/[._]/g, ' ') || 'Wedding Host',
-      email: email.trim(),
-    };
-    setHostUser(user);
-    try {
-      localStorage.setItem(STORAGE_KEY_HOST_AUTH, JSON.stringify(user));
-    } catch (e) {}
-    triggerToast(`Welcome back, ${user.name}!`, 'Host admin session active');
-    return true;
-  };
-
-  const loginWithGoogle = async (): Promise<{ error?: string }> => {
+  const loginWithGoogle = async (next?: string): Promise<{ error?: string }> => {
     if (!isSupabaseConfigured()) {
       const err =
         'Supabase keys are not set yet. Please paste your NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local';
@@ -599,7 +619,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     try {
       const redirectUrl =
         typeof window !== 'undefined'
-          ? `${window.location.origin}/auth/callback`
+          ? `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`
           : undefined;
 
       const { error } = await supabase.auth.signInWithOAuth({
@@ -640,16 +660,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         }
 
         if (data.user) {
-          const user: HostUser = {
-            id: data.user.id,
-            name:
-              data.user.user_metadata?.full_name ||
-              data.user.user_metadata?.name ||
-              data.user.email?.split('@')[0] ||
-              'Wedding Host',
-            email: data.user.email || email.trim(),
-            avatar: data.user.user_metadata?.avatar_url || data.user.user_metadata?.picture,
-          };
+          const user = toHostUser(data.user);
           setHostUser(user);
           triggerToast(`Welcome back, ${user.name}!`, 'Host admin session active');
           return { success: true };
@@ -659,8 +670,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    loginHost(email, pass);
-    return { success: true };
+    return { success: false, error: 'Host sign in is unavailable right now. Please try again later.' };
   };
 
   const signUpHostWithPassword = async (
@@ -711,8 +721,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    loginHost(email, pass);
-    return { success: true };
+    return { success: false, error: 'Host sign up is unavailable right now. Please try again later.' };
   };
 
   const logoutHost = async () => {
@@ -723,10 +732,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
         console.warn('Supabase sign out error:', e);
       }
     }
+    // Only the host session ends; this browser's guest identity is kept
     setHostUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY_HOST_AUTH);
-    } catch (e) {}
     triggerToast('Logged out of Host Admin');
   };
 
@@ -769,7 +776,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
               cover_url:
                 data.coverUrl ||
                 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
-              owner_id: isUuid(hostUser.id) ? hostUser.id : '61e6052c-d4bf-446d-b51f-aa5961791d1a',
+              owner_id: hostUser.id,
             },
           ])
           .select()
@@ -947,13 +954,37 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const setGuestName = (name: string) => {
     setGuestNameState(name);
     setHasJoined(true);
+    // Give this browser a stable guest id the first time the guest joins
+    const id = guestId || crypto.randomUUID();
+    if (!guestId) setGuestId(id);
     try {
       localStorage.setItem(STORAGE_KEY_GUEST, name);
+      localStorage.setItem(STORAGE_KEY_GUEST_ID, id);
     } catch (e) {}
   };
 
-  const joinCelebration = (nameInput: string) => {
+  // Clears only the guest identity; a signed-in host session is left untouched
+  const leaveAsGuest = () => {
+    setGuestNameState('');
+    setGuestId('');
+    setHasJoined(false);
+    try {
+      localStorage.removeItem(STORAGE_KEY_GUEST);
+      localStorage.removeItem(STORAGE_KEY_GUEST_ID);
+    } catch (e) {}
+  };
+
+  const joinCelebration = async (nameInput: string) => {
     const clean = nameInput.trim() || 'Wedding Guest';
+    // One role per browser: joining as a guest ends any host session first
+    if (hostUser && isSupabaseConfigured()) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('Supabase sign out error:', e);
+      }
+      setHostUser(null);
+    }
     setGuestName(clean);
     setGuestCount((c) => c + 1);
     triggerToast(`Welcome, ${clean}!`, 'Guest session active');
@@ -1027,7 +1058,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
     guestName?: string;
   }) => {
     const finalAuthor = newEntry.guestName?.trim() || guestName || 'Wedding Guest';
-    if (newEntry.guestName?.trim() && newEntry.guestName.trim() !== guestName) {
+    // Hosts posting from a guest page keep their host role; only guests update their saved name
+    if (!hostUser && newEntry.guestName?.trim() && newEntry.guestName.trim() !== guestName) {
       setGuestName(newEntry.guestName.trim());
     }
 
@@ -1127,7 +1159,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (entries.length === 0) return;
     const firstCustomName = entries[0]?.guestName?.trim();
     const finalAuthor = firstCustomName || guestName || 'Wedding Guest';
-    if (firstCustomName && firstCustomName !== guestName) {
+    if (!hostUser && firstCustomName && firstCustomName !== guestName) {
       setGuestName(firstCustomName);
     }
 
@@ -1300,8 +1332,30 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const cycleNextSlide = () => {
+  // Unpins the spotlight on every screen (synced via the database) and resumes auto-play
+  const resumeSlideshow = async () => {
     setSpotlightId(null);
+    setIsSlideshowPlaying(true);
+    triggerToast('Slideshow resumed', 'Live screens are rolling through memories again');
+
+    if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
+      try {
+        await supabase
+          .from('posts')
+          .update({ is_spotlight: false })
+          .eq('event_id', currentEvent.id)
+          .eq('is_spotlight', true);
+      } catch (e) {
+        console.warn('resumeSlideshow db error:', e);
+      }
+    }
+  };
+
+  const cycleNextSlide = () => {
+    if (spotlightId) {
+      // Advancing from a pinned photo also releases it on every screen
+      resumeSlideshow();
+    }
     setCurrentSlideIdx((prev) => (prev + 1) % Math.max(1, publicMemories.length));
     triggerToast('Advanced to next memory on live screen');
   };
@@ -1415,13 +1469,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
     <EventContext.Provider
       value={{
         isHostLoggedIn: Boolean(hostUser),
+        isAuthLoading,
         hostUser,
-        loginHost,
         loginWithGoogle,
         loginHostWithPassword,
         signUpHostWithPassword,
         logoutHost,
         events,
+        eventsLoaded,
         hostEvents,
         currentEvent,
         getEventById,
@@ -1429,9 +1484,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
         createEvent,
         updateEvent,
         deleteEvent,
+        guestId,
         guestName,
         hasJoined,
         setGuestName,
+        leaveAsGuest,
         guestCount,
         reactionCount,
         memories: eventMemories,
@@ -1449,6 +1506,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         toggleVote,
         togglePrivacy,
         toggleSpotlight,
+        resumeSlideshow,
         deleteMemory,
         deleteMultipleMemories,
         spotlightId,

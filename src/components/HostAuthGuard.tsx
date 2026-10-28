@@ -2,11 +2,22 @@
 
 import React, { ReactNode } from 'react';
 import Link from 'next/link';
-import { Shield, Lock, ArrowRight, Sparkles } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Lock, ArrowRight, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
 export default function HostAuthGuard({ children }: { children: ReactNode }) {
-  const { isHostLoggedIn, loginHost } = useEvent();
+  const pathname = usePathname();
+  const { isHostLoggedIn, isAuthLoading } = useEvent();
+
+  // Wait for Supabase to restore the session before deciding
+  if (isAuthLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-6 h-6 animate-spin text-[#2D4A3A]" />
+      </div>
+    );
+  }
 
   if (!isHostLoggedIn) {
     return (
@@ -25,23 +36,13 @@ export default function HostAuthGuard({ children }: { children: ReactNode }) {
             </p>
           </div>
 
-          <div className="space-y-3">
-            <Link
-              href="/host/login"
-              className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
-            >
-              <span>Go to Host Sign In</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-
-            <button
-              onClick={() => loginHost('host@memoryaisle.app', 'password123')}
-              className="w-full py-3 px-6 rounded-xl border border-[#2D4A3A]/30 bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>1-Click Host Demo Login</span>
-            </button>
-          </div>
+          <Link
+            href={`/host/login?next=${encodeURIComponent(pathname || '/host/events')}`}
+            className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+          >
+            <span>Go to Host Sign In</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </div>
     );
@@ -49,4 +50,3 @@ export default function HostAuthGuard({ children }: { children: ReactNode }) {
 
   return <>{children}</>;
 }
-

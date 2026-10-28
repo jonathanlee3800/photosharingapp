@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Filter,
   ArrowLeft,
+  Play,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
@@ -30,6 +31,7 @@ export default function HostPhotosPage() {
     getPrompt,
     spotlightId,
     toggleSpotlight,
+    resumeSlideshow,
     togglePrivacy,
     deleteMemory,
     deleteMultipleMemories,
@@ -171,6 +173,41 @@ export default function HostPhotosPage() {
         </div>
       </div>
 
+      {/* Pinned spotlight banner */}
+      {spotlightId && (() => {
+        const pinned = memories.find((m) => m.id === spotlightId);
+        return (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#E9EFEA] border border-[#2D4A3A]/20">
+            <div className="flex items-center gap-3 min-w-0">
+              {pinned && (
+                <img
+                  src={pinned.url}
+                  alt=""
+                  className="w-12 h-12 rounded-xl object-cover border border-[#1C2820]/10 shrink-0"
+                />
+              )}
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#2D4A3A] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Pinned on all live screens</span>
+                </div>
+                <div className="text-xs text-[#1C2820]/70 font-medium truncate">
+                  {pinned ? `“${pinned.caption}” · ${pinned.guestName}` : 'The slideshow is paused on this photo.'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={resumeSlideshow}
+              className="px-4 py-2.5 rounded-xl bg-[#2D4A3A] hover:bg-[#1F3628] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors shrink-0"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>Resume Slideshow</span>
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Filter Tabs */}
       <div className="flex items-center gap-6 border-b border-[#1C2820]/10 overflow-x-auto no-scrollbar">
         {[
@@ -310,7 +347,7 @@ export default function HostPhotosPage() {
                 className="relative aspect-[4/3] bg-black/5 cursor-pointer overflow-hidden"
                 onClick={() => toggleSelect(item.id)}
               >
-                {item.url.startsWith('data:video') ? (
+                {item.type === 'video' ? (
                   <video
                     src={item.url}
                     muted

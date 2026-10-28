@@ -8,8 +8,6 @@ import {
   Play,
   Heart,
   Plus,
-  Shield,
-  Tv,
   Download,
   Menu,
   X,
@@ -26,9 +24,11 @@ export default function Navbar() {
     isHostLoggedIn,
     logoutHost,
     hasJoined,
+    guestName,
+    leaveAsGuest,
   } = useEvent();
-  // Guests who have joined an event only see guest navigation (no host login / projector)
-  const isGuest = hasJoined && !isHostLoggedIn;
+  // Anyone not signed in as a host only sees guest navigation; the host login link lives in the footer
+  const isGuest = !isHostLoggedIn;
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   // If on full projector screen, we don't show the standard site navbar
@@ -40,13 +40,15 @@ export default function Navbar() {
     return null;
   }
 
-  const navLinks = [
-    { label: 'Gallery', href: `/user/${currentEvent.id}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
-    { label: 'Live Slideshow', href: `/user/${currentEvent.id}/slideshow`, matchSuffix: '/slideshow', icon: Play },
-    { label: 'Live Voting', href: `/user/${currentEvent.id}/vote`, matchSuffix: '/vote', icon: Heart },
-  ];
+  // Guest links only; hosts manage everything from the host portal
+  const navLinks = isGuest
+    ? [
+        { label: 'Gallery', href: `/user/${currentEvent.id}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
+        { label: 'Live Slideshow', href: `/user/${currentEvent.id}/slideshow`, matchSuffix: '/slideshow', icon: Play },
+        { label: 'Live Voting', href: `/user/${currentEvent.id}/vote`, matchSuffix: '/vote', icon: Heart },
+      ]
+    : [];
 
-  const isHostPage = pathname?.startsWith('/host');
 
   return (
     <nav className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-[#1C2820]/10 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
@@ -54,7 +56,10 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Left: Brand & Active Event Title */}
           <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link
+              href={isGuest ? `/user/${currentEvent.id}` : '/host/events'}
+              className="flex items-center gap-2.5 group"
+            >
               <span className="w-8 h-8 rounded-lg bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shadow-sm group-hover:scale-105 transition-transform">
                 m
               </span>
@@ -95,44 +100,20 @@ export default function Navbar() {
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2.5">
-            {/* Upload Button */}
-            <Link
-              href={`/user/${currentEvent.id}/upload`}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Share Moment</span>
-            </Link>
-
-            {/* Projector Screen Shortcut */}
-            {!isGuest && (
+            {/* Upload Button (guests only) */}
+            {isGuest && (
               <Link
-                href={`/user/${currentEvent.id}/projector`}
-                target="_blank"
-                className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-[#1C2820]/15 text-[#1C2820] hover:bg-black/5 transition-all"
-                title="Open full-screen 16:9 venue screen"
+                href={`/user/${currentEvent.id}/upload`}
+                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
               >
-                <Tv className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                <span>Projector</span>
+                <Plus className="w-4 h-4" />
+                <span>Share Moment</span>
               </Link>
             )}
 
-            {/* Host Navigation / Auth Status */}
-            {isHostLoggedIn ? (
+            {/* Host actions (the logo links back to the events list) */}
+            {isHostLoggedIn && (
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <Link
-                  href="/host/events"
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    isHostPage
-                      ? 'bg-[#2D4A3A] text-white border-[#2D4A3A]'
-                      : 'border-[#1C2820]/15 text-[#1C2820] hover:bg-black/5'
-                  }`}
-                  title="Host Events"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Host Events</span>
-                </Link>
-
                 <Link
                   href="/host/events/new"
                   className="hidden xl:flex items-center gap-1 px-2.5 py-2 rounded-xl border border-[#1C2820]/15 text-xs font-semibold text-[#2D4A3A] bg-[#E9EFEA] hover:bg-[#D8E5DA]"
@@ -150,17 +131,6 @@ export default function Navbar() {
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
-            ) : (
-              !isGuest && (
-                <Link
-                  href="/host/login"
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold border border-[#1C2820]/15 text-[#1C2820] hover:bg-black/5 transition-all"
-                  title="Host Login"
-                >
-                  <Shield className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                  <span className="hidden sm:inline">Host Login</span>
-                </Link>
-              )
             )}
 
             {/* Export ZIP Trigger (Host Only) */}
@@ -175,13 +145,15 @@ export default function Navbar() {
               </button>
             )}
 
-            {/* Mobile Menu Toggle Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl text-[#1C2820] hover:bg-black/5"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
+            {/* Mobile Menu Toggle Button (guest links only) */}
+            {isGuest && (
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-xl text-[#1C2820] hover:bg-black/5"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -208,33 +180,28 @@ export default function Navbar() {
               </Link>
             );
           })}
-          <div className="pt-2 border-t border-[#1C2820]/10 flex flex-col gap-2">
-            <Link
-              href={`/user/${currentEvent.id}/upload`}
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Share a Moment or Photo</span>
-            </Link>
-            {!isGuest && (
-              <div className="flex gap-2">
-                <Link
-                  href={isHostLoggedIn ? "/host/events" : "/host/login"}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex-1 py-2 text-center text-xs font-semibold rounded-xl border border-[#1C2820]/15"
-                >
-                  {isHostLoggedIn ? "Host Events" : "Host Login"}
-                </Link>
-                <Link
-                  href={`/user/${currentEvent.id}/projector`}
-                  target="_blank"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex-1 py-2 text-center text-xs font-semibold rounded-xl border border-[#1C2820]/15"
-                >
-                  Projector Screen
-                </Link>
-              </div>
+          <div className={`flex flex-col gap-2 ${isGuest ? 'pt-2 border-t border-[#1C2820]/10' : ''}`}>
+            {isGuest && (
+              <Link
+                href={`/user/${currentEvent.id}/upload`}
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Share a Moment or Photo</span>
+              </Link>
+            )}
+            {isGuest && hasJoined && (
+              <button
+                type="button"
+                onClick={() => {
+                  leaveAsGuest();
+                  setMobileMenuOpen(false);
+                }}
+                className="pt-1 text-left text-[11px] font-semibold text-[#1C2820]/60 hover:text-[#1C2820] hover:underline"
+              >
+                Not {guestName}? Leave event
+              </button>
             )}
           </div>
         </div>
