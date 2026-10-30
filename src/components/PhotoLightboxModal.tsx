@@ -23,6 +23,8 @@ interface PhotoLightboxModalProps {
   hasNext?: boolean;
   hasPrev?: boolean;
   onToggleVote?: (id: string) => void;
+  // Whether this photo can be voted on right now (only during a live round)
+  canVote?: (memory: MemoryItem) => boolean;
   onDownload?: (memory: MemoryItem) => void;
   categoryLabel?: string;
   categoryIcon?: string;
@@ -39,6 +41,7 @@ export default function PhotoLightboxModal({
   hasNext = false,
   hasPrev = false,
   onToggleVote,
+  canVote,
   onDownload,
   categoryLabel,
   categoryIcon = '🌿',
@@ -227,11 +230,12 @@ export default function PhotoLightboxModal({
             <button
               type="button"
               onClick={() => onToggleVote(memory.id)}
+              title={!canVote || canVote(memory) ? 'Vote' : 'Voting opens during a live round'}
               className={`w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0 ${
                 memory.votedByMe
                   ? 'bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white shadow-lg border border-white/20'
                   : 'bg-white/15 hover:bg-white/25 text-white border border-white/10'
-              }`}
+              } ${!canVote || canVote(memory) ? '' : 'opacity-50'}`}
             >
               <Heart
                 className={`w-4 h-4 transition-transform ${

@@ -32,8 +32,14 @@ export interface ToastMessage {
 }
 
 export interface VotingRound {
+  // True only while the host has a round open and its timer (if any) has not run out
   isActive: boolean;
+  // Host opened a round that has not been closed yet (may have timed out)
+  isOpen: boolean;
   promptId: string;
+  endsAt: string | null;
+  // Seconds left on the round timer, or null for an open-ended round
+  secondsLeft: number | null;
 }
 
 interface EventContextType {
@@ -89,7 +95,6 @@ interface EventContextType {
   getPrompt: (id: string) => PromptItem;
   addPrompt: (label: string, icon?: string) => Promise<void>;
   deletePrompt: (promptId: string) => Promise<void>;
-  setVotingCategory: (promptId: string) => void;
 
   // Actions
   joinCelebration: (name: string) => Promise<void>;
@@ -132,7 +137,9 @@ interface EventContextType {
 
   // Live Voting
   votingRound: VotingRound;
-  setVotingRound: React.Dispatch<React.SetStateAction<VotingRound>>;
+  canVoteOn: (memory: MemoryItem) => boolean;
+  startVotingRound: (promptId: string, durationMinutes: number | null) => Promise<void>;
+  closeVotingRound: () => Promise<MemoryItem | null>;
 
   // Reactions
   floatingEmojis: FloatingEmoji[];
@@ -160,6 +167,9 @@ const STORAGE_KEY_GUEST_ID = 'withlove_guest_id';
 // Legacy cached host session; no longer trusted, only cleared on load
 const STORAGE_KEY_HOST_AUTH = 'withlove_host_user_auth';
 const STORAGE_KEY_REACTIONS = 'withlove_reactions_count';
+
+// Minimum gap between emoji broadcasts from one screen (taps in between still show locally)
+const REACTION_BROADCAST_GAP_MS = 150;
 
 const isUuid = (str?: string): boolean => {
   if (!str) return false;
@@ -221,6 +231,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Reactions, Toasts, ZIP Modal
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+  const lastReactionSentRef = useRef(0);
+
+  // Floats an emoji up the screen for ~2.6s (used for local taps and ones broadcast by others)
+  const showFloatingEmoji = useCallback((emoji: string) => {
+    const id = Date.now() + Math.random();
+    const left = Math.floor(Math.random() * 70) + 15;
+    setFloatingEmojis((prev) => [...prev.slice(-12), { id, emoji, left }]);
+    setTimeout(() => {
+      setFloatingEmojis((prev) => prev.filter((item) => item.id !== id));
+    }, 2600);
+  }, []);
   const [isZipModalOpen, setIsZipModalOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
@@ -259,6 +280,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
           votingPromptId: e.voting_prompt_id || '',
           createdAt: e.created_at,
           ownerId: e.owner_id,
+          votingOpen: Boolean(e.voting_open),
+          votingEndsAt: e.voting_ends_at || null,
         }));
         setEvents(mapped);
       }
@@ -269,13 +292,19 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch Posts from Supabase
-  const fetchPostsFromDb = useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
+  // Identity used for "one vote per person per post": the host's auth id, else this browser's guest id
+  const voterIdRef = useRef('');
+  voterIdRef.current = hostUser?.id || guestId;
+
+  // Fetch one event's posts and replace that event's slice of the cache (other events stay cached).
+  // Cached posts render immediately; this refresh swaps in the latest rows (stale-while-revalidate).
+  const fetchPostsForEvent = useCallback(async (eventId: string) => {
+    if (!isSupabaseConfigured() || !isUuid(eventId)) return;
     try {
       const { data: dbPosts, error } = await supabase
         .from('posts')
         .select('*')
+        .eq('event_id', eventId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -283,18 +312,24 @@ export function EventProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (dbPosts) {
-        const mapped: MemoryItem[] = dbPosts.map(mapDbPost);
-
-        if (mapped.length > 0) {
-          setMemories(mapped);
-        }
-
-        const spotlighted = dbPosts.find((p: any) => p.is_spotlight);
-        if (spotlighted) {
-          setSpotlightId(spotlighted.id);
-        }
+      // Which of these posts this voter has already voted for (one vote per person per post)
+      const votedIds = new Set<string>();
+      const voterId = voterIdRef.current;
+      if (voterId) {
+        const { data: myVotes, error: votesError } = await supabase.rpc('my_voted_posts', {
+          p_event_id: eventId,
+          p_voter_id: voterId,
+        });
+        if (votesError) console.warn('Error loading my votes:', votesError);
+        (myVotes || []).forEach((id: string) => votedIds.add(id));
       }
+
+      const mapped: MemoryItem[] = (dbPosts || []).map((p: any) => ({
+        ...mapDbPost(p),
+        votedByMe: votedIds.has(p.id),
+      }));
+      setMemories((prev) => [...mapped, ...prev.filter((m) => m.eventId !== eventId)]);
+      setSpotlightId((dbPosts || []).find((p: any) => p.is_spotlight)?.id ?? null);
     } catch (err) {
       console.warn('Error fetching posts from Supabase:', err);
     }
@@ -375,9 +410,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
 
-    // Pull from DB
+    // Pull events from DB (posts are loaded per event when it is opened)
     fetchEventsFromDb();
-    fetchPostsFromDb();
 
     // Set up Real-time Live Synchronization Channel (posts are handled per event below)
     const channel = supabase
@@ -402,7 +436,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       subscription?.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [fetchEventsFromDb, fetchPostsFromDb]);
+  }, [fetchEventsFromDb]);
 
   // Save to LocalStorage
   useEffect(() => {
@@ -415,7 +449,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEY_MEMORIES, JSON.stringify(memories));
+      // Only cache posts that point at a URL; embedded base64/blob media would blow the ~5 MB quota
+      const cacheable = memories.filter((m) => m.url && !m.url.startsWith('data:') && !m.url.startsWith('blob:'));
+      localStorage.setItem(STORAGE_KEY_MEMORIES, JSON.stringify(cacheable));
     } catch (e) {}
   }, [memories]);
 
@@ -548,14 +584,27 @@ export function EventProvider({ children }: { children: ReactNode }) {
           if (!isHost && payload?.id) removePost(payload.id);
         }
       )
-      .subscribe();
+      .on(
+        // Emoji taps from other screens on this event (the sender already showed its own)
+        'broadcast',
+        { event: 'reaction' },
+        ({ payload }) => {
+          const emoji = payload?.emoji;
+          if (typeof emoji === 'string' && emoji.length > 0 && emoji.length <= 8) showFloatingEmoji(emoji);
+        }
+      )
+      .subscribe((status) => {
+        // Load (or refresh) this event's posts once live updates are flowing, so nothing is missed
+        // between the fetch and the subscription. Also re-syncs after a dropped connection reconnects.
+        if (status === 'SUBSCRIBED') fetchPostsForEvent(eventId);
+      });
 
     eventChannelRef.current = channel;
     return () => {
       eventChannelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [currentEvent.id, hostUser?.id]);
+  }, [currentEvent.id, hostUser?.id, fetchPostsForEvent, showFloatingEmoji]);
 
   // Filter memories for the current event
   const eventMemories = memories.filter(
@@ -565,17 +614,30 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const publicMemories = eventMemories.filter((m) => !m.isPrivate);
   const privateMemories = eventMemories.filter((m) => m.isPrivate);
 
-  // Live Voting State derived from current event
-  const [votingRound, setVotingRound] = useState<VotingRound>({
-    isActive: true,
-    promptId: currentEvent.votingPromptId || prompts[0]?.id || 'fav-chapter',
-  });
-
+  // Live Voting round, derived from the event row (kept in sync for everyone via Realtime)
+  const votingEndsAt = currentEvent.votingEndsAt || null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
-    if (currentEvent.votingPromptId) {
-      setVotingRound((v) => ({ ...v, promptId: currentEvent.votingPromptId }));
-    }
-  }, [currentEvent.id, currentEvent.votingPromptId]);
+    // Tick once a second only while a timed round is open, so countdowns and expiry update
+    if (!currentEvent.votingOpen || !votingEndsAt) return;
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [currentEvent.votingOpen, votingEndsAt]);
+
+  const secondsLeft = votingEndsAt
+    ? Math.max(0, Math.ceil((new Date(votingEndsAt).getTime() - nowMs) / 1000))
+    : null;
+  const votingRound: VotingRound = {
+    isOpen: Boolean(currentEvent.votingOpen),
+    isActive: Boolean(currentEvent.votingOpen) && (secondsLeft === null || secondsLeft > 0),
+    promptId: currentEvent.votingPromptId || prompts[0]?.id || '',
+    endsAt: votingEndsAt,
+    secondsLeft,
+  };
+
+  // Votes are only allowed on photos in the live round's category
+  const canVoteOn = (memory: MemoryItem) =>
+    votingRound.isActive && !memory.isPrivate && memory.promptId === votingRound.promptId;
 
   // Slideshow auto-advance
   useEffect(() => {
@@ -905,7 +967,44 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Deletes a category AND permanently deletes every photo/video in it (DB rows, votes, R2 files)
   const deletePrompt = async (promptId: string) => {
+    if (votingRound.isOpen && votingRound.promptId === promptId) {
+      triggerToast('Close the live round first', 'This category is being voted on right now');
+      return;
+    }
+
+    if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
+      // Find every post in this category from the database (not just what this screen has loaded)
+      const { data: rows, error: findError } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('event_id', currentEvent.id)
+        .eq('category_tag', promptId);
+      if (findError) {
+        triggerToast('Could not delete category', findError.message);
+        return;
+      }
+      const postIds = (rows || []).map((r: { id: string }) => r.id);
+
+      if (postIds.length > 0) {
+        // Files first: the R2 route checks ownership against the rows, so they must still exist
+        await deleteMediaFromR2({ postIds });
+        const { error: deleteError } = await supabase.from('posts').delete().in('id', postIds);
+        if (deleteError) {
+          triggerToast('Could not delete the category’s photos', deleteError.message);
+          return;
+        }
+      }
+    }
+
+    // Remove the deleted photos from every local view (gallery, slideshow, spotlight)
+    const removedIds = new Set(
+      memories.filter((m) => m.eventId === currentEvent.id && m.promptId === promptId).map((m) => m.id)
+    );
+    setMemories((prev) => prev.filter((m) => !(m.eventId === currentEvent.id && m.promptId === promptId)));
+    if (spotlightId && removedIds.has(spotlightId)) setSpotlightId(null);
+
     setEvents((prev) =>
       prev.map((ev) => {
         if (ev.id !== currentEvent.id) return ev;
@@ -920,34 +1019,72 @@ export function EventProvider({ children }: { children: ReactNode }) {
         };
       })
     );
-    triggerToast('Category removed');
+    triggerToast(
+      'Category deleted',
+      removedIds.size > 0 ? `${removedIds.size} photos and videos permanently deleted` : undefined
+    );
 
     if (isSupabaseConfigured() && isUuid(promptId)) {
-      try {
-        await supabase.from('prompts').delete().eq('id', promptId);
-      } catch (e) {
-        console.warn('deletePrompt db error:', e);
+      const { error } = await supabase.from('prompts').delete().eq('id', promptId);
+      if (error) console.warn('deletePrompt db error:', error);
+    }
+  };
+
+  // Host: open a voting round on the chosen category (optional time limit)
+  const startVotingRound = async (promptId: string, durationMinutes: number | null) => {
+    if (!promptId) {
+      triggerToast('Pick a category for the round first');
+      return;
+    }
+    const endsAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60_000).toISOString() : null;
+    const patch = { votingOpen: true, votingEndsAt: endsAt, votingPromptId: promptId };
+    setEvents((prev) => prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, ...patch } : ev)));
+    setNowMs(Date.now());
+    triggerToast(
+      'Live voting round started',
+      durationMinutes ? `Guests can vote for ${durationMinutes} minutes` : 'Guests can vote until you close the round'
+    );
+
+    if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
+      const { error } = await supabase
+        .from('events')
+        .update({ voting_open: true, voting_ends_at: endsAt, voting_prompt_id: promptId })
+        .eq('id', currentEvent.id);
+      if (error) {
+        console.warn('startVotingRound error:', error);
+        triggerToast('Could not start the round', error.message);
+        fetchEventsFromDb();
       }
     }
   };
 
-  const setVotingCategory = (promptId: string) => {
+  // Host: close the round and return the winning photo (most votes in the round's category)
+  const closeVotingRound = async (): Promise<MemoryItem | null> => {
+    const winner =
+      publicMemories
+        .filter((m) => m.promptId === votingRound.promptId)
+        .sort((a, b) => b.votes - a.votes)[0] || null;
+
     setEvents((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== currentEvent.id) return ev;
-        return { ...ev, votingPromptId: promptId };
-      })
+      prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, votingOpen: false, votingEndsAt: null } : ev))
     );
-    setVotingRound((v) => ({ ...v, promptId }));
-    triggerToast('Live voting contest category updated');
+    triggerToast(
+      'Voting round closed',
+      winner && winner.votes > 0 ? `Winner: "${winner.caption.slice(0, 40)}" by ${winner.guestName}` : 'No votes were cast'
+    );
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
-      supabase
+      const { error } = await supabase
         .from('events')
-        .update({ voting_prompt_id: promptId })
-        .eq('id', currentEvent.id)
-        .then();
+        .update({ voting_open: false, voting_ends_at: null })
+        .eq('id', currentEvent.id);
+      if (error) {
+        console.warn('closeVotingRound error:', error);
+        triggerToast('Could not close the round', error.message);
+        fetchEventsFromDb();
+      }
     }
+    return winner && winner.votes > 0 ? winner : null;
   };
 
   // Guest & Reaction Handlers
@@ -1017,12 +1154,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
-    const id = Date.now() + Math.random();
-    const left = Math.floor(Math.random() * 70) + 15;
-    setFloatingEmojis((prev) => [...prev.slice(-12), { id, emoji, left }]);
-    setTimeout(() => {
-      setFloatingEmojis((prev) => prev.filter((item) => item.id !== id));
-    }, 2600);
+    showFloatingEmoji(emoji);
+
+    // Share the tap live with every screen on this event (projector, slideshow, other guests).
+    // Broadcast skips the database; throttled so rapid tapping can't flood the channel.
+    const now = Date.now();
+    if (eventChannelRef.current && now - lastReactionSentRef.current >= REACTION_BROADCAST_GAP_MS) {
+      lastReactionSentRef.current = now;
+      eventChannelRef.current.send({ type: 'broadcast', event: 'reaction', payload: { emoji } });
+    }
 
     // Record reaction in Supabase
     if (isSupabaseConfigured()) {
@@ -1082,8 +1222,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
           : 'Shared live from the wedding reception.',
       promptId: newEntry.promptId || prompts[0]?.id || 'fav-chapter',
       isPrivate: Boolean(newEntry.isPrivate),
-      votes: 1,
-      votedByMe: true,
+      votes: 0,
+      votedByMe: false,
       timestamp: 'Just now',
     };
 
@@ -1133,7 +1273,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
             video_duration: created.duration || null,
             is_private: created.isPrivate,
             is_spotlight: false,
-            votes_count: 1,
           },
         ]);
 
@@ -1181,8 +1320,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
           : 'Shared live from the wedding reception.',
       promptId: newEntry.promptId || prompts[0]?.id || 'fav-chapter',
       isPrivate: Boolean(newEntry.isPrivate),
-      votes: 1,
-      votedByMe: true,
+      votes: 0,
+      votedByMe: false,
       timestamp: 'Just now',
     }));
 
@@ -1245,7 +1384,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
             video_duration: c.duration || null,
             is_private: c.isPrivate,
             is_spotlight: false,
-            votes_count: 1,
           }))
         );
       } catch (err) {
@@ -1254,43 +1392,53 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Returns this browser's voter id, creating a guest id if a guest votes before joining
+  const ensureVoterId = (): string => {
+    if (hostUser?.id) return hostUser.id;
+    if (guestId) return guestId;
+    const id = crypto.randomUUID();
+    setGuestId(id);
+    voterIdRef.current = id;
+    try {
+      localStorage.setItem(STORAGE_KEY_GUEST_ID, id);
+    } catch (e) {}
+    return id;
+  };
+
+  // One vote per person per post: the database toggles only this voter's own vote
   const toggleVote = async (memoryId: string) => {
     const target = memories.find((m) => m.id === memoryId);
     if (!target) return;
-    const nextVoted = !target.votedByMe;
-    const nextVotes = nextVoted ? target.votes + 1 : Math.max(0, target.votes - 1);
-
-    setMemories((prev) =>
-      prev.map((m) => {
-        if (m.id !== memoryId) return m;
-        return {
-          ...m,
-          votedByMe: nextVoted,
-          votes: nextVotes,
-        };
-      })
-    );
-    sendReaction('🥂');
-
-    if (isSupabaseConfigured() && isUuid(memoryId)) {
-      try {
-        await supabase.from('posts').update({ votes_count: nextVotes }).eq('id', memoryId);
-        if (nextVoted) {
-          await supabase.from('reactions').insert([
-            {
-              post_id: memoryId,
-              reaction_type: 'vote',
-              guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null,
-              event_id: isUuid(currentEvent.id) ? currentEvent.id : null,
-            },
-          ]);
-        } else {
-          await supabase.from('reactions').delete().eq('post_id', memoryId);
-        }
-      } catch (e) {
-        console.warn('toggleVote db error:', e);
-      }
+    if (!canVoteOn(target)) {
+      triggerToast(
+        votingRound.isActive ? 'This photo isn’t in the live round' : 'Voting isn’t open right now',
+        votingRound.isActive
+          ? `Vote for photos in "${getPrompt(votingRound.promptId).label}"`
+          : 'The hosts will open a live voting round soon'
+      );
+      return;
     }
+    const nextVoted = !target.votedByMe;
+
+    // Optimistic update; corrected below with the server's answer
+    const applyVote = (voted: boolean, votes: number) =>
+      setMemories((prev) => prev.map((m) => (m.id === memoryId ? { ...m, votedByMe: voted, votes } : m)));
+    applyVote(nextVoted, nextVoted ? target.votes + 1 : Math.max(0, target.votes - 1));
+    if (nextVoted) sendReaction('🥂');
+
+    if (!isSupabaseConfigured() || !isUuid(memoryId)) return;
+
+    const { data, error } = await supabase.rpc('toggle_vote', {
+      p_post_id: memoryId,
+      p_voter_id: ensureVoterId(),
+    });
+    if (error || !data) {
+      console.warn('toggleVote error:', error);
+      applyVote(target.votedByMe ?? false, target.votes);
+      triggerToast('Vote not saved', error?.message || 'Please check your connection and try again');
+      return;
+    }
+    applyVote(Boolean(data.voted), Number(data.votes) || 0);
   };
 
   const toggleSpotlight = async (memoryId: string) => {
@@ -1498,7 +1646,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
         getPrompt,
         addPrompt,
         deletePrompt,
-        setVotingCategory,
         joinCelebration,
         switchEventByCode,
         addMemory,
@@ -1519,7 +1666,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         cycleNextSlide,
         cyclePrevSlide,
         votingRound,
-        setVotingRound,
+        canVoteOn,
+        startVotingRound,
+        closeVotingRound,
         floatingEmojis,
         sendReaction,
         toast,

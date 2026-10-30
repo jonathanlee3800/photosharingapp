@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export default function HostPhotosPage() {
   const {
@@ -40,6 +41,7 @@ export default function HostPhotosPage() {
     setIsZipModalOpen,
   } = useEvent();
 
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [filterTab, setFilterTab] = useState<'all' | 'live' | 'private' | 'review'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -79,13 +81,14 @@ export default function HostPhotosPage() {
     }
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) return;
-    if (
-      window.confirm(
-        `Are you sure you want to permanently delete ${selectedIds.length} photo(s)?`
-      )
-    ) {
+    const ok = await confirm({
+      title: `Delete ${selectedIds.length} ${selectedIds.length === 1 ? 'photo' : 'photos'}?`,
+      message: 'They will be removed from the gallery, slideshow and projector for everyone. This can’t be undone.',
+      confirmLabel: `Delete ${selectedIds.length}`,
+    });
+    if (ok) {
       deleteMultipleMemories(selectedIds);
       setSelectedIds([]);
     }
@@ -475,12 +478,12 @@ export default function HostPhotosPage() {
                   {/* Delete picture */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete photo by ${item.guestName}?\n"${item.caption}"`
-                        )
-                      ) {
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Delete photo by ${item.guestName}?`,
+                        message: `“${item.caption}” will be removed for everyone. This can’t be undone.`,
+                      });
+                      if (ok) {
                         deleteMemory(item.id);
                         setSelectedIds((prev) => prev.filter((id) => id !== item.id));
                       }
@@ -507,6 +510,7 @@ export default function HostPhotosPage() {
         </div>
       )}
     </div>
+    {confirmDialog}
     </HostAuthGuard>
   );
 }

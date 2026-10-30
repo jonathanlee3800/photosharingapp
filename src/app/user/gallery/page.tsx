@@ -20,6 +20,8 @@ import {
 import { useEvent } from '@/context/EventContext';
 import PhotoLightboxModal from '@/components/PhotoLightboxModal';
 
+const REACTION_EMOJIS = ['❤️', '🥂', '✨', '😂', '🎉'];
+
 export default function GalleryPage() {
   const {
     currentEvent,
@@ -29,7 +31,46 @@ export default function GalleryPage() {
     activeSlideMemory,
     toggleVote,
     downloadSingle,
+    sendReaction,
+    floatingEmojis,
+    canVoteOn,
   } = useEvent();
+
+  // Emoji taps on the spotlight card are sent live to the projector and every other screen
+  const reactionButtons = (size: 'sm' | 'md') => (
+    <div className="flex items-center gap-1.5">
+      {REACTION_EMOJIS.map((emoji) => (
+        <button
+          key={emoji}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            sendReaction(emoji);
+          }}
+          className={`flex-1 rounded-xl bg-[#FAF8F5] hover:bg-[#E9EFEA] border border-[#1C2820]/10 active:scale-90 transition-all flex items-center justify-center ${
+            size === 'sm' ? 'py-1.5 text-lg' : 'py-2 text-xl'
+          }`}
+          title="Send to the big screen"
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+
+  const floatingEmojiLayer = (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+      {floatingEmojis.map((item) => (
+        <div
+          key={item.id}
+          style={{ left: `${item.left}%` }}
+          className="absolute bottom-4 text-3xl drop-shadow-lg animate-rise"
+        >
+          {item.emoji}
+        </div>
+      ))}
+    </div>
+  );
 
   const [selectedPromptId, setSelectedPromptId] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,12 +165,14 @@ export default function GalleryPage() {
       {activeSlideMemory && !activeSlideMemory.isPrivate && (
         <>
           {/* Mobile compact spotlight bar */}
+          <div className="md:hidden relative bg-white rounded-2xl border border-[#1C2820]/10 shadow-sm overflow-hidden">
+          {floatingEmojiLayer}
           <div
             onClick={() => {
               const heroIdx = filtered.findIndex((m) => m.id === activeSlideMemory.id);
               if (heroIdx !== -1) setLightboxIndex(heroIdx);
             }}
-            className="md:hidden bg-white p-3 rounded-2xl border border-[#1C2820]/10 shadow-sm flex items-center gap-3 cursor-pointer"
+            className="p-3 flex items-center gap-3 cursor-pointer"
           >
             <div className="w-14 h-14 rounded-xl overflow-hidden bg-black/5 shrink-0 relative">
               <img
@@ -155,18 +198,22 @@ export default function GalleryPage() {
                 e.stopPropagation();
                 toggleVote(activeSlideMemory.id);
               }}
+              title={canVoteOn(activeSlideMemory) ? 'Vote' : 'Voting opens during a live round'}
               className={`p-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
                 activeSlideMemory.votedByMe
                   ? 'bg-[#2D4A3A] text-white shadow-sm'
                   : 'bg-[#E9EFEA] text-[#2D4A3A]'
-              }`}
+              } ${canVoteOn(activeSlideMemory) ? '' : 'opacity-50'}`}
             >
               <Heart className={`w-4 h-4 ${activeSlideMemory.votedByMe ? 'fill-white' : ''}`} />
             </button>
           </div>
+          <div className="px-3 pb-3">{reactionButtons('sm')}</div>
+          </div>
 
           {/* Desktop Magazine Spotlight */}
-          <div className="hidden md:grid bg-white rounded-3xl overflow-hidden border border-[#1C2820]/10 shadow-md grid-cols-12 items-center">
+          <div className="hidden md:grid relative bg-white rounded-3xl overflow-hidden border border-[#1C2820]/10 shadow-md grid-cols-12 items-center">
+            {floatingEmojiLayer}
             <div
               onClick={() => {
                 const heroIdx = filtered.findIndex((m) => m.id === activeSlideMemory.id);
@@ -203,6 +250,11 @@ export default function GalleryPage() {
                 )}
               </div>
 
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold text-[#1C2820]/60">Send live love to the big screen</div>
+                {reactionButtons('md')}
+              </div>
+
               <div className="flex items-center justify-between pt-4 border-t border-[#1C2820]/10">
                 <div className="text-xs font-semibold text-[#1C2820]/75">
                   Shared by <span className="font-bold text-[#1C2820]">{activeSlideMemory.guestName}</span> · {activeSlideMemory.timestamp}
@@ -212,11 +264,12 @@ export default function GalleryPage() {
                     e.stopPropagation();
                     toggleVote(activeSlideMemory.id);
                   }}
+                  title={canVoteOn(activeSlideMemory) ? 'Vote' : 'Voting opens during a live round'}
                   className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 active:scale-95 transition-all ${
                     activeSlideMemory.votedByMe
                       ? 'bg-[#2D4A3A] text-white shadow-md'
                       : 'bg-[#E9EFEA] text-[#2D4A3A] hover:bg-[#D8E5DA]'
-                  }`}
+                  } ${canVoteOn(activeSlideMemory) ? '' : 'opacity-50'}`}
                 >
                   <Heart className={`w-4 h-4 ${activeSlideMemory.votedByMe ? 'fill-white' : ''}`} />
                   <span>{activeSlideMemory.votes} Likes</span>
@@ -402,11 +455,12 @@ export default function GalleryPage() {
                       e.stopPropagation();
                       toggleVote(item.id);
                     }}
+                    title={canVoteOn(item) ? 'Vote' : 'Voting opens during a live round'}
                     className={`flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full font-bold active:scale-90 transition-transform shrink-0 ${
                       item.votedByMe
                         ? 'bg-[#2D4A3A] text-white shadow-sm'
                         : 'bg-[#FAF8F5] border border-[#1C2820]/10 text-[#1C2820]/70 hover:bg-[#E9EFEA]'
-                    }`}
+                    } ${canVoteOn(item) ? '' : 'opacity-50'}`}
                   >
                     <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${item.votedByMe ? 'fill-white' : ''}`} />
                     <span className="text-[11px] sm:text-xs">{item.votes}</span>
@@ -503,6 +557,7 @@ export default function GalleryPage() {
           categoryLabel={getPrompt(filtered[lightboxIndex].promptId).label}
           categoryIcon={getPrompt(filtered[lightboxIndex].promptId).icon}
           onToggleVote={toggleVote}
+          canVote={canVoteOn}
           onDownload={downloadSingle}
         />
       )}

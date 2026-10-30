@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Lock, Sparkles, ArrowLeft } from 'lucide-react';
@@ -8,9 +8,16 @@ import { useEvent } from '@/context/EventContext';
 
 export default function JoinPage() {
   const router = useRouter();
-  const { currentEvent, guestName, joinCelebration, hostUser } = useEvent();
+  const { currentEvent, guestName, joinCelebration, hostUser, hasJoined } = useEvent();
   const [nameInput, setNameInput] = useState(guestName || '');
   const [nameError, setNameError] = useState('');
+  // Guests who already joined see a welcome-back card instead of the name form
+  const [changingName, setChangingName] = useState(false);
+  const showWelcomeBack = hasJoined && !hostUser && !changingName;
+
+  useEffect(() => {
+    if (guestName) setNameInput(guestName);
+  }, [guestName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +59,28 @@ export default function JoinPage() {
           </p>
         </div>
 
+        {showWelcomeBack ? (
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-[#1C2820]">
+              Welcome back, <span className="text-[#2D4A3A]">{guestName}</span>!
+            </p>
+            <Link
+              href={`/user/${currentEvent.id}/gallery`}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-95"
+            >
+              <span>Continue to the Celebration</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setChangingName(true)}
+              className="w-full text-xs font-semibold text-[#1C2820]/60 hover:text-[#1C2820] hover:underline"
+            >
+              Not {guestName}? Change your name
+            </button>
+          </div>
+        ) : (
+        <>
         {hostUser && (
           <div className="p-3 rounded-xl bg-[#E9EFEA] border border-[#2D4A3A]/20 text-[11px] text-[#1C2820]/75 font-medium leading-relaxed">
             You&rsquo;re signed in as host <span className="font-bold">{hostUser.email}</span>. Joining as a
@@ -93,10 +122,12 @@ export default function JoinPage() {
             type="submit"
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-95"
           >
-            <span>Join the Celebration</span>
+            <span>{hasJoined ? 'Save & Continue' : 'Join the Celebration'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+        </>
+        )}
 
         <div className="pt-4 border-t border-[#1C2820]/10 flex items-center justify-between text-xs text-[#1C2820]/60">
           <div className="flex items-center gap-1.5 text-[#2D4A3A] font-bold">

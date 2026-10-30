@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   Share2,
   Trash2,
-  Check,
   Calendar,
   MapPin,
   Tag,
@@ -25,7 +24,9 @@ import {
   Play,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import type { MemoryItem } from '@/lib/initialData';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { generateQrDataUrl, downloadQrCode } from '@/lib/qrHelper';
 
 const EMOJI_OPTIONS = ['🌿', '🥂', '✨', '🕰️', '💃', '📸', '🎉', '💐', '🎂', '💌'];
@@ -41,7 +42,8 @@ export default function HostOverviewPage() {
     privateMemories,
     prompts,
     votingRound,
-    setVotingCategory,
+    startVotingRound,
+    closeVotingRound,
     activeSlideMemory,
     spotlightId,
     toggleSpotlight,
@@ -57,6 +59,12 @@ export default function HostOverviewPage() {
   const [promptIcon, setPromptIcon] = useState('📸');
   const [showAddPrompt, setShowAddPrompt] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  // Live round controls: chosen duration (minutes, 0 = no limit) and the last revealed winner
+  const [roundMinutes, setRoundMinutes] = useState(5);
+  const [lastWinner, setLastWinner] = useState<MemoryItem | null>(null);
+  const [roundBusy, setRoundBusy] = useState(false);
+  const [roundPromptId, setRoundPromptId] = useState('');
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Generate real QR code for current event
   useEffect(() => {
@@ -68,11 +76,18 @@ export default function HostOverviewPage() {
     });
   }, [currentEvent.id]);
 
+  // While a round is open it shows that round's category; otherwise the category picked for the next round
+  const selectedRoundPromptId =
+    (prompts.some((p) => p.id === roundPromptId) && roundPromptId) ||
+    (prompts.some((p) => p.id === votingRound.promptId) && votingRound.promptId) ||
+    prompts[0]?.id ||
+    '';
+  const roundDisplayPromptId = votingRound.isOpen ? votingRound.promptId : selectedRoundPromptId;
   const activeVotingPrompt =
-    prompts.find((p) => p.id === votingRound.promptId) || prompts[0] || { id: 'default', label: 'Wedding Moments', icon: '🌿' };
+    prompts.find((p) => p.id === roundDisplayPromptId) || prompts[0] || { id: 'default', label: 'Wedding Moments', icon: '🌿' };
 
-  // Live round stats for the current event, starting from zero
-  const votingCandidates = publicMemories.filter((m) => m.promptId === votingRound.promptId);
+  // Live round stats for the round's category
+  const votingCandidates = publicMemories.filter((m) => m.promptId === roundDisplayPromptId);
   const votingTotal = votingCandidates.reduce((sum, m) => sum + (m.votes || 0), 0);
 
   const handleCopyLink = () => {
@@ -315,21 +330,50 @@ export default function HostOverviewPage() {
               <h2 className="font-serif text-2xl sm:text-3xl text-[#1C2820]">
                 The live round
               </h2>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#2D4A3A] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#2D4A3A]"></span> LIVE
-              </span>
+              {votingRound.isActive ? (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#2D4A3A] flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2D4A3A] animate-pulse"></span> LIVE
+                </span>
+              ) : votingRound.isOpen ? (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700">TIME’S UP</span>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#1C2820]/45">CLOSED</span>
+              )}
             </div>
 
             <div>
-              <div className="text-sm font-bold text-[#1C2820] mb-3 flex items-center gap-2">
-                <span>{activeVotingPrompt.icon}</span>
-                <span>{activeVotingPrompt.label}</span>
-              </div>
+              {votingRound.isOpen ? (
+                <div className="text-sm font-bold text-[#1C2820] mb-3 flex items-center gap-2">
+                  <span>{activeVotingPrompt.icon}</span>
+                  <span>{activeVotingPrompt.label}</span>
+                </div>
+              ) : (
+                <label className="block mb-3">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-[#1C2820]/55 mb-1.5">
+                    Category for the next round
+                  </span>
+                  <select
+                    value={selectedRoundPromptId}
+                    onChange={(e) => setRoundPromptId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#1C2820]/15 bg-white text-sm font-bold text-[#1C2820] focus:outline-none focus:border-[#2D4A3A]"
+                  >
+                    {prompts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.icon} {p.label} ({publicMemories.filter((m) => m.promptId === p.id).length} photos)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <div className="grid grid-cols-3 gap-3 border-y border-[#1C2820]/10 py-4">
                 <div>
                   <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
-                    00:00
+                    {!votingRound.isOpen
+                      ? '--:--'
+                      : votingRound.secondsLeft === null
+                        ? '∞'
+                        : `${Math.floor(votingRound.secondsLeft / 60)}:${String(votingRound.secondsLeft % 60).padStart(2, '0')}`}
                   </div>
                   <div className="text-[10px] text-[#1C2820]/60 font-medium">remaining</div>
                 </div>
@@ -348,13 +392,65 @@ export default function HostOverviewPage() {
               </div>
             </div>
 
+            {/* Winner of the last closed round */}
+            {!votingRound.isOpen && lastWinner && (
+              <div className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-[#2D4A3A]/20">
+                <img
+                  src={lastWinner.url}
+                  alt=""
+                  className="w-12 h-12 rounded-xl object-cover border border-[#1C2820]/10 shrink-0"
+                />
+                <div className="min-w-0 text-xs">
+                  <div className="font-bold text-[#2D4A3A] flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5" /> Winner · {lastWinner.votes} votes
+                  </div>
+                  <div className="text-[#1C2820]/70 font-medium truncate">
+                    “{lastWinner.caption}” · {lastWinner.guestName}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => triggerToast('Contest closed! Winner displayed on screen')}
-                className="flex-1 py-3 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"
-              >
-                <Trophy className="w-4 h-4" /> Close & Reveal Winner
-              </button>
+              {votingRound.isOpen ? (
+                <button
+                  disabled={roundBusy}
+                  onClick={async () => {
+                    setRoundBusy(true);
+                    setLastWinner(await closeVotingRound());
+                    setRoundBusy(false);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-60"
+                >
+                  <Trophy className="w-4 h-4" /> Close & Reveal Winner
+                </button>
+              ) : (
+                <>
+                  <select
+                    value={roundMinutes}
+                    onChange={(e) => setRoundMinutes(Number(e.target.value))}
+                    className="px-3 py-3 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] focus:outline-none"
+                    title="Round length"
+                  >
+                    <option value={2}>2 min</option>
+                    <option value={5}>5 min</option>
+                    <option value={10}>10 min</option>
+                    <option value={0}>No limit</option>
+                  </select>
+                  <button
+                    disabled={roundBusy}
+                    onClick={async () => {
+                      setRoundBusy(true);
+                      setLastWinner(null);
+                      await startVotingRound(selectedRoundPromptId, roundMinutes || null);
+                      setRoundBusy(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-60"
+                  >
+                    <Play className="w-4 h-4" /> Start Voting Round
+                  </button>
+                </>
+              )}
               <Link
                 href={`/user/${currentEvent.id}/vote`}
                 className="px-4 py-3 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] transition-colors"
@@ -420,7 +516,6 @@ export default function HostOverviewPage() {
             {/* Prompts list */}
             <div className="space-y-2">
               {prompts.map((p) => {
-                const isVoting = p.id === votingRound.promptId;
                 const count = memories.filter((m) => m.promptId === p.id).length;
 
                 return (
@@ -437,25 +532,29 @@ export default function HostOverviewPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {isVoting ? (
-                        <span className="px-2.5 py-1 rounded-full bg-[#2D4A3A] text-white text-[10px] font-bold flex items-center gap-1">
-                          <Check className="w-3 h-3" />
-                          <span>Active Contest</span>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setVotingCategory(p.id)}
-                          className="px-2.5 py-1 rounded-full border border-[#1C2820]/15 hover:bg-black/5 text-[#1C2820]/70 text-[10px] font-semibold"
-                        >
-                          Make Contest
-                        </button>
-                      )}
 
                       {prompts.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => deletePrompt(p.id)}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Delete “${p.label}”?`,
+                              message:
+                                count > 0 ? (
+                                  <>
+                                    <strong className="text-red-600">
+                                      All {count} {count === 1 ? 'photo/video' : 'photos and videos'} in this category
+                                      will be permanently deleted
+                                    </strong>
+                                    . This can’t be undone.
+                                  </>
+                                ) : (
+                                  'This category has no photos. Guests won’t be able to pick it anymore.'
+                                ),
+                              confirmLabel: count > 0 ? `Delete category & ${count} ${count === 1 ? 'photo' : 'photos'}` : 'Delete category',
+                            });
+                            if (ok) deletePrompt(p.id);
+                          }}
                           className="p-1.5 text-[#1C2820]/40 hover:text-red-600 transition-colors"
                           title="Delete category"
                         >
@@ -520,6 +619,7 @@ export default function HostOverviewPage() {
           </div>
         </div>
       </div>
+      {confirmDialog}
     </HostAuthGuard>
   );
 }

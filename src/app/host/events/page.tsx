@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,11 +16,33 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export default function HostEventsPage() {
   const router = useRouter();
-  const { hostEvents: events, currentEvent, setCurrentEventId, deleteEvent, memories, hostUser } = useEvent();
+  const { hostEvents: events, currentEvent, setCurrentEventId, deleteEvent } = useEvent();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
+  // Post counts per event: fetch only the event_id column (no media) instead of loading every post
+  const [postCounts, setPostCounts] = useState<Record<string, number>>({});
+  const eventIdsKey = events.map((e) => e.id).join(',');
+  useEffect(() => {
+    const ids = eventIdsKey.split(',').filter(Boolean);
+    if (!isSupabaseConfigured() || ids.length === 0) return;
+    supabase
+      .from('posts')
+      .select('event_id')
+      .in('event_id', ids)
+      .then(({ data }) => {
+        const counts: Record<string, number> = {};
+        (data || []).forEach((p: { event_id: string }) => {
+          counts[p.event_id] = (counts[p.event_id] || 0) + 1;
+        });
+        setPostCounts(counts);
+      });
+  }, [eventIdsKey]);
 
   const handleOpenEvent = (id: string) => {
     setCurrentEventId(id, true);
@@ -80,9 +102,7 @@ export default function HostEventsPage() {
           {/* Event Cards */}
           {events.map((ev) => {
             const isCurrent = ev.id === currentEvent.id;
-            const eventMemoriesCount = memories.filter(
-              (m) => m.eventId === ev.id || (!m.eventId && ev.id === 'event-1')
-            ).length;
+            const eventMemoriesCount = postCounts[ev.id] || 0;
 
             return (
               <div
@@ -191,11 +211,15 @@ export default function HostEventsPage() {
                   {events.length > 1 && (
                     <button
                       type="button"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Delete celebration "${ev.title}"?`)) {
-                          deleteEvent(ev.id);
-                        }
+                        const ok = await confirm({
+                          title: `Delete “${ev.title}”?`,
+                          message:
+                            'This permanently deletes the event with all its photos, videos, categories and votes. Guests’ QR codes will stop working. This can’t be undone.',
+                          confirmLabel: 'Delete event',
+                        });
+                        if (ok) deleteEvent(ev.id);
                       }}
                       className="p-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                       title="Delete event"
@@ -209,6 +233,7 @@ export default function HostEventsPage() {
           })}
         </div>
       </div>
+      {confirmDialog}
     </HostAuthGuard>
   );
 }

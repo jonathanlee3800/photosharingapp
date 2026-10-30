@@ -57,7 +57,13 @@ export default function Navbar() {
           {/* Left: Brand & Active Event Title */}
           <div className="flex items-center gap-6">
             <Link
-              href={isGuest ? `/user/${currentEvent.id}` : '/host/events'}
+              href={
+                !isGuest
+                  ? '/host/events'
+                  : hasJoined
+                    ? `/user/${currentEvent.id}/gallery`
+                    : `/user/${currentEvent.id}`
+              }
               className="flex items-center gap-2.5 group"
             >
               <span className="w-8 h-8 rounded-lg bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shadow-sm group-hover:scale-105 transition-transform">

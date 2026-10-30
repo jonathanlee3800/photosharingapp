@@ -39,6 +39,9 @@ export interface EventItem {
   votingPromptId: string;
   createdAt: string;
   ownerId?: string;
+  // Live voting round (votes are only accepted while a round is open)
+  votingOpen?: boolean;
+  votingEndsAt?: string | null;
 }
 
 export interface HostUser {

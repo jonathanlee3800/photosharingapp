@@ -2,24 +2,47 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { MemoryItem } from './initialData';
 
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/heic': 'heic',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+};
+
+// File extension from the actual file type, falling back to the media type
+function extensionFor(mime: string | undefined, type: MemoryItem['type']): string {
+  return (mime && EXT_BY_MIME[mime.split(';')[0].trim().toLowerCase()]) || (type === 'video' ? 'mp4' : 'jpg');
+}
+
+// Fetches a photo/video as a Blob; throws on HTTP errors so an error page is never saved as media
+async function fetchMediaBlob(url: string): Promise<Blob> {
+  const response = await fetch(url, { mode: 'cors' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.blob();
+}
+
 /**
  * Downloads a single photo directly to the user's device
  */
 export async function downloadSinglePhoto(memory: MemoryItem) {
-  const ext = memory.type === 'video' ? 'mp4' : 'jpg';
-  const filename = `wedding-memory-${slugify(memory.guestName)}-${memory.id}.${ext}`;
+  const baseName = `wedding-memory-${slugify(memory.guestName)}-${memory.id}`;
   try {
     // Check if it's a data URL or remote URL
     if (memory.url.startsWith('data:')) {
-      saveAs(memory.url, filename);
+      const mime = memory.url.slice(5, memory.url.indexOf(';'));
+      saveAs(memory.url, `${baseName}.${extensionFor(mime, memory.type)}`);
       return true;
     }
 
-    const response = await fetch(memory.url, { mode: 'cors' });
-    const blob = await response.blob();
-    saveAs(blob, filename);
+    const blob = await fetchMediaBlob(memory.url);
+    saveAs(blob, `${baseName}.${extensionFor(blob.type, memory.type)}`);
     return true;
   } catch (error) {
+    const filename = `${baseName}.${extensionFor(undefined, memory.type)}`;
     console.warn('Direct fetch failed, falling back to window.open or link:', error);
     // Fallback: trigger a link with download attribute
     const link = document.createElement('a');
@@ -65,35 +88,41 @@ export async function downloadMemoriesZip(
   });
 
   zip.file('GUESTBOOK_AND_WELL_WISHES.txt', wellWishesSummary);
-  zip.file('memories_metadata.json', JSON.stringify(memories, null, 2));
+  // Metadata only: embedded base64 media is already in the photo files, don't duplicate it here
+  zip.file(
+    'memories_metadata.json',
+    JSON.stringify(
+      memories.map((m) => ({ ...m, url: m.url.startsWith('data:') ? '(embedded file in wedding_photos/)' : m.url })),
+      null,
+      2
+    )
+  );
 
   // 2. Fetch and add images/videos
   const total = memories.length;
   for (let i = 0; i < total; i++) {
     const mem = memories[i];
-    const safeGuest = slugify(mem.guestName);
-    const ext = mem.type === 'video' ? 'mp4' : 'jpg';
-    const filename = `${String(i + 1).padStart(2, '0')}_${safeGuest}_${mem.id}.${ext}`;
+    const baseName = `${String(i + 1).padStart(2, '0')}_${slugify(mem.guestName)}_${mem.id}`;
 
     if (onProgress && total > 0) {
-      onProgress(Math.round(((i + 1) / total) * 90), filename);
+      onProgress(Math.round(((i + 1) / total) * 90), baseName);
     }
 
     try {
       if (mem.url.startsWith('data:')) {
         // Base64 image or video
+        const mime = mem.url.slice(5, mem.url.indexOf(';'));
         const base64Data = mem.url.split(',')[1];
         if (base64Data) {
-          folder.file(filename, base64Data, { base64: true });
+          folder.file(`${baseName}.${extensionFor(mime, mem.type)}`, base64Data, { base64: true });
         }
       } else {
-        const res = await fetch(mem.url);
-        const blob = await res.blob();
-        folder.file(filename, blob);
+        const blob = await fetchMediaBlob(mem.url);
+        folder.file(`${baseName}.${extensionFor(blob.type, mem.type)}`, blob);
       }
     } catch (e) {
-      console.warn(`Could not bundle ${filename} directly (CORS). Embedding reference link.`);
-      folder.file(`${filename}.url.txt`, `Direct photo link: ${mem.url}\nCaption: ${mem.caption}`);
+      console.warn(`Could not bundle ${baseName} (${e instanceof Error ? e.message : 'fetch failed'}). Embedding reference link.`);
+      folder.file(`${baseName}.url.txt`, `Direct photo link: ${mem.url}\nCaption: ${mem.caption}`);
     }
   }
 
