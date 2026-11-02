@@ -41,7 +41,9 @@ export default function ProjectorScreen({
   fullscreenMode = true,
 }: ProjectorScreenProps) {
   const eventContext = useEvent();
-  const { currentEvent } = eventContext;
+  const { currentEvent, isHostLoggedIn } = eventContext;
+  // Only the host may skip, pause or resume the slideshow; anyone else just watches
+  const canControl = isHostLoggedIn;
 
   const memories = propMemories ?? eventContext.publicMemories;
   const activeMemory = propActiveMemory ?? eventContext.activeSlideMemory;
@@ -66,8 +68,9 @@ export default function ProjectorScreen({
     });
   }, [currentEvent.id]);
 
-  // Keyboard navigation for presentation
+  // Keyboard navigation for presentation (host only)
   useEffect(() => {
+    if (!canControl) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
@@ -81,7 +84,7 @@ export default function ProjectorScreen({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNextSlide, handleTogglePlay, eventContext]);
+  }, [canControl, handleNextSlide, handleTogglePlay, eventContext]);
 
   if (!activeMemory) return null;
   const promptObj = getPrompt(activeMemory.promptId);
@@ -273,28 +276,32 @@ export default function ProjectorScreen({
       {/* Floating Host Controls Overlay */}
       <div className="absolute top-4 right-4 z-40 opacity-15 hover:opacity-100 transition-opacity">
         <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md p-2 rounded-full border border-white/15 shadow-xl">
-          <button
-            onClick={() => eventContext.cyclePrevSlide()}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title="Previous slide (Left Arrow)"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleTogglePlay}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title={isPlaying ? 'Pause slideshow (P)' : 'Play slideshow (P)'}
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={handleNextSlide}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title="Next slide (Right Arrow / Space)"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <div className="w-px h-4 bg-white/20 mx-1" />
+          {canControl && (
+            <>
+              <button
+                onClick={() => eventContext.cyclePrevSlide()}
+                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
+                title="Previous slide (Left Arrow)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleTogglePlay}
+                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
+                title={isPlaying ? 'Pause slideshow (P)' : 'Play slideshow (P)'}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={handleNextSlide}
+                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
+                title="Next slide (Right Arrow / Space)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="w-px h-4 bg-white/20 mx-1" />
+            </>
+          )}
           <button
             onClick={handleToggleFullscreen}
             className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"

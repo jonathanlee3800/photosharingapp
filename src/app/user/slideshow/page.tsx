@@ -1,18 +1,7 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import {
-  Sparkles,
-  Heart,
-  Film,
-  Play,
-  Pause,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Tv,
-} from 'lucide-react';
+import { Sparkles, Heart, Film, Maximize2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
 export default function SlideshowPage() {
@@ -21,15 +10,10 @@ export default function SlideshowPage() {
     publicMemories,
     activeSlideMemory,
     spotlightId,
-    setSpotlightId,
     getPrompt,
     reactionCount,
     floatingEmojis,
     sendReaction,
-    cycleNextSlide,
-    cyclePrevSlide,
-    isSlideshowPlaying,
-    setIsSlideshowPlaying,
   } = useEvent();
 
   if (!activeSlideMemory) {
@@ -62,46 +46,10 @@ export default function SlideshowPage() {
         <div className="flex items-center gap-3">
           <span className="w-2 h-2 rounded-full bg-[#74A886] animate-pulse" />
           <span className="text-xs font-bold uppercase tracking-widest text-[#9BC4A8]">
-            {spotlightId ? 'Pinned Spotlight' : 'Live Rolling Slideshow'}
+            {spotlightId ? 'Pinned by the hosts' : 'Live Rolling Slideshow'}
           </span>
-          <span className="text-xs text-white/40 hidden sm:inline">· 5.5s interval</span>
         </div>
-
-        <div className="flex items-center gap-3">
-          {/* Controls */}
-          <div className="flex items-center gap-1 bg-white/10 backdrop-blur-md rounded-xl p-1 border border-white/10">
-            <button
-              onClick={cyclePrevSlide}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors"
-              title="Previous"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setIsSlideshowPlaying(!isSlideshowPlaying)}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors"
-              title={isSlideshowPlaying ? 'Pause' : 'Play'}
-            >
-              {isSlideshowPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={cycleNextSlide}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors"
-              title="Next"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <Link
-            href={`/user/${currentEvent.id}/projector`}
-            target="_blank"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold border border-white/10 text-white transition-all"
-          >
-            <Tv className="w-3.5 h-3.5 text-[#9BC4A8]" />
-            <span>Open 16:9 Screen</span>
-          </Link>
-        </div>
+        {/* Guests only watch: pinning, pausing and skipping are host controls (dashboard / projector) */}
       </div>
 
       {/* Main Slideshow Stage */}
@@ -185,25 +133,23 @@ export default function SlideshowPage() {
       </div>
 
       {/* Bottom Queue Strip */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 pb-28 sm:pb-4 border-t border-white/10 relative z-20">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 border-t border-white/10 relative z-20">
         <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
           <span className="text-[11px] font-bold uppercase tracking-wider text-white/40 shrink-0">
-            Stream Queue:
+            In the slideshow:
           </span>
+          {/* Read-only for guests: shows what's rolling, doesn't change it */}
           {publicMemories.map((m) => {
             const isCurrent = m.id === activeSlideMemory.id;
             return (
-              <button
+              <div
                 key={m.id}
-                onClick={() => setSpotlightId(m.id)}
                 className={`relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
-                  isCurrent
-                    ? 'border-white scale-110 shadow-lg'
-                    : 'border-white/20 opacity-60 hover:opacity-100'
+                  isCurrent ? 'border-white scale-110 shadow-lg' : 'border-white/20 opacity-60'
                 }`}
               >
                 <img src={m.url} alt="" className="w-full h-full object-cover" />
-              </button>
+              </div>
             );
           })}
         </div>

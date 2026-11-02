@@ -16,13 +16,15 @@ export default function GuestFooter() {
     pathname?.startsWith('/host') ||
     pathname === '/projector' ||
     pathname === '/display' ||
-    pathname?.endsWith('/projector')
+    pathname?.endsWith('/projector') ||
+    pathname?.endsWith('/upload')
   ) {
     return null;
   }
 
   return (
-    <footer className="border-t border-[#1C2820]/10 py-5 px-4 text-center text-[11px] text-[#1C2820]/50">
+    // On phones, leave room for the fixed bottom tab bar and home indicator
+    <footer className="border-t border-[#1C2820]/[0.08] pt-5 px-4 text-center text-[12px] text-[#1C2820]/45 pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+1.25rem)] md:pb-5">
       <span>Memory Aisle · </span>
       <Link href="/host/login" className="font-semibold hover:text-[#1C2820] hover:underline">
         Sign in as host

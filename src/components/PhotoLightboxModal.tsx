@@ -102,7 +102,7 @@ export default function PhotoLightboxModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md text-white animate-in fade-in duration-200">
       {/* Top Header Controls Bar */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-3.5 sm:p-6 bg-gradient-to-b from-black/85 via-black/40 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-3.5 sm:p-6 bg-gradient-to-b from-black/85 via-black/40 to-transparent" style={{ paddingTop: "max(0.875rem, env(safe-area-inset-top))" }}>
         <div className="flex items-center gap-2">
           <span className="px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] sm:text-xs font-bold tracking-wider text-white/90">
             {currentIndex} / {totalCount}
@@ -120,7 +120,7 @@ export default function PhotoLightboxModal({
           <button
             type="button"
             onClick={() => setIsZoomed((z) => !z)}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all text-white/90 hover:text-white"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all text-white/90 hover:text-white"
             title={isZoomed ? 'Zoom out' : 'Zoom in'}
           >
             {isZoomed ? <ZoomOut className="w-4 h-4 sm:w-5 sm:h-5" /> : <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -131,7 +131,7 @@ export default function PhotoLightboxModal({
             <button
               type="button"
               onClick={() => onDownload(memory)}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all text-white/90 hover:text-white"
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all text-white/90 hover:text-white"
               title="Download photo"
             >
               <Download className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -142,7 +142,7 @@ export default function PhotoLightboxModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center transition-all text-white shadow-lg"
+            className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center transition-all text-white shadow-lg"
             title="Close (Esc)"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -206,14 +206,14 @@ export default function PhotoLightboxModal({
       </div>
 
       {/* Bottom Info Bar / Drawer */}
-      <div className="absolute bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black via-black/90 to-transparent p-3.5 sm:p-6 pb-6">
+      <div className="absolute bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black via-black/90 to-transparent p-4 sm:p-6" style={{ paddingBottom: "max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem))" }}>
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="space-y-1 flex-1 pr-1 w-full">
-            <blockquote className="font-serif italic text-sm sm:text-2xl text-white/95 leading-snug line-clamp-2 sm:line-clamp-none">
+            <blockquote className="font-serif italic text-[18px] sm:text-2xl text-white/95 leading-snug line-clamp-2 sm:line-clamp-none">
               “{memory.caption}”
             </blockquote>
 
-            <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs text-white/70 flex-wrap">
+            <div className="flex items-center gap-2 sm:gap-3 text-[13px] sm:text-xs text-white/70 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#2D4A3A] border border-white/20 flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white">
                   {initials}
@@ -231,7 +231,7 @@ export default function PhotoLightboxModal({
               type="button"
               onClick={() => onToggleVote(memory.id)}
               title={!canVote || canVote(memory) ? 'Vote' : 'Voting opens during a live round'}
-              className={`w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0 ${
+              className={`w-full sm:w-auto h-12 px-5 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0 ${
                 memory.votedByMe
                   ? 'bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white shadow-lg border border-white/20'
                   : 'bg-white/15 hover:bg-white/25 text-white border border-white/10'

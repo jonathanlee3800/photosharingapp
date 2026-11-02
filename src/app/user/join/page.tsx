@@ -3,14 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Lock, Sparkles, ArrowLeft } from 'lucide-react';
+import { ArrowRight, Camera, Images, Heart } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
 export default function JoinPage() {
   const router = useRouter();
-  const { currentEvent, guestName, joinCelebration, hostUser, hasJoined } = useEvent();
+  const { currentEvent, guestName, joinCelebration, hostUser, hasJoined, leaveAsGuest } = useEvent();
   const [nameInput, setNameInput] = useState(guestName || '');
   const [nameError, setNameError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   // Guests who already joined see a welcome-back card instead of the name form
   const [changingName, setChangingName] = useState(false);
   const showWelcomeBack = hasJoined && !hostUser && !changingName;
@@ -22,124 +23,149 @@ export default function JoinPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim()) {
-      setNameError('Please enter your name so the couple knows who is sharing.');
+      setNameError('Add your name so the couple knows who’s sharing.');
       return;
     }
     setNameError('');
+    setSubmitting(true);
     await joinCelebration(nameInput.trim());
     router.push(`/user/${currentEvent.id}/gallery`);
   };
 
+  const meta = [currentEvent.date, currentEvent.venue].filter(Boolean).join(' · ');
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center py-10 px-4 sm:px-6 pb-28 sm:pb-12">
-      <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-xl space-y-6">
-        <div className="relative h-56 rounded-2xl overflow-hidden shadow-inner bg-black/10">
-          <img
-            src={currentEvent.coverUrl}
-            alt={currentEvent.title}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-          <div className="absolute bottom-4 left-4 right-4 text-white">
-            <span className="text-[10px] uppercase tracking-widest font-bold text-white/80">
-              {currentEvent.date} · {currentEvent.venue}
+    <div className="flex-1 flex flex-col md:items-center md:justify-center md:py-12 md:px-6">
+      <div className="w-full md:max-w-md md:rounded-[32px] md:overflow-hidden md:shadow-2xl md:border md:border-[#1C2820]/10 bg-[#FAF8F5] flex flex-col flex-1 md:flex-none">
+        {/* Cover: full-bleed on phones */}
+        <div className="relative h-[46vh] min-h-[300px] max-h-[460px] md:h-72 md:min-h-0 bg-[#182B24] overflow-hidden">
+          <img src={currentEvent.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          {/* Darker at the top too, so the iPhone status bar stays readable over the photo */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/35" />
+          <span
+            className="absolute left-5 flex items-center gap-2 text-white/90"
+            style={{ top: 'calc(env(safe-area-inset-top) + 0.9rem)' }}
+          >
+            <span className="w-7 h-7 rounded-[9px] bg-white/15 backdrop-blur-md flex items-center justify-center font-serif text-base font-bold">
+              m
             </span>
-            <h1 className="font-serif text-3xl font-medium mt-0.5">
-              {currentEvent.title}
-            </h1>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <h2 className="font-serif text-2xl font-bold text-[#1C2820]">
-            Our day. Your eyes.
-          </h2>
-          <p className="text-xs text-[#1C2820]/70 font-medium leading-relaxed">
-            Share your candid photos, video toasts, and well-wishes directly from your mobile browser. No app download needed.
-          </p>
-        </div>
-
-        {showWelcomeBack ? (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-[#1C2820]">
-              Welcome back, <span className="text-[#2D4A3A]">{guestName}</span>!
-            </p>
-            <Link
-              href={`/user/${currentEvent.id}/gallery`}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-95"
-            >
-              <span>Continue to the Celebration</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <button
-              type="button"
-              onClick={() => setChangingName(true)}
-              className="w-full text-xs font-semibold text-[#1C2820]/60 hover:text-[#1C2820] hover:underline"
-            >
-              Not {guestName}? Change your name
-            </button>
-          </div>
-        ) : (
-        <>
-        {hostUser && (
-          <div className="p-3 rounded-xl bg-[#E9EFEA] border border-[#2D4A3A]/20 text-[11px] text-[#1C2820]/75 font-medium leading-relaxed">
-            You&rsquo;re signed in as host <span className="font-bold">{hostUser.email}</span>. Joining as a
-            guest will sign you out of the host portal.
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-[#1C2820]/80 uppercase tracking-wide mb-1.5">
-              Your Name
-            </label>
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => {
-                setNameInput(e.target.value);
-                if (nameError) setNameError('');
-              }}
-              placeholder="e.g. Clara Vance"
-              className={`w-full px-4 py-3 rounded-xl border text-sm font-semibold focus:outline-none focus:ring-2 transition-all shadow-sm ${
-                nameError
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-200'
-                  : 'border-[#1C2820]/20 focus:border-[#2D4A3A] focus:ring-[#2D4A3A]/20'
-              }`}
-            />
-            {nameError ? (
-              <span className="block text-[11px] text-red-600 mt-1 font-semibold">
-                {nameError}
-              </span>
-            ) : (
-              <span className="block text-[10px] text-[#1C2820]/50 mt-1 font-medium">
-                Shown alongside your candid photos and well-wishes
-              </span>
+            <span className="font-serif text-[17px] tracking-tight">memory aisle</span>
+          </span>
+          <div className="absolute inset-x-0 bottom-0 px-6 pb-12 md:pb-10 text-white animate-fade-up">
+            {meta && (
+              <p className="text-[12px] uppercase tracking-[0.16em] font-semibold text-white/80">{meta}</p>
             )}
+            <h1 className="font-serif text-[44px] leading-[1.02] font-medium mt-2 tracking-tight">{currentEvent.title}</h1>
+          </div>
+        </div>
+
+        {/* Sheet */}
+        <div className="relative -mt-7 flex-1 rounded-t-[28px] md:rounded-none bg-[#FAF8F5] px-6 pt-8 pb-10 space-y-7">
+          <div className="space-y-2 animate-fade-up" style={{ animationDelay: '60ms' }}>
+            <h2 className="font-serif text-[30px] leading-tight font-medium text-[#1C2820]">
+              {showWelcomeBack ? `Welcome back, ${guestName}.` : 'Our day. Your eyes.'}
+            </h2>
+            <p className="text-[15px] leading-relaxed text-[#1C2820]/65">
+              {showWelcomeBack
+                ? 'Pick up where you left off — your photos and votes are right where you left them.'
+                : 'Share your photos and well-wishes straight from your phone. No app, no sign-up.'}
+            </p>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 active:scale-95"
-          >
-            <span>{hasJoined ? 'Save & Continue' : 'Join the Celebration'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </form>
-        </>
-        )}
+          {showWelcomeBack ? (
+            <div className="space-y-3 animate-fade-up" style={{ animationDelay: '120ms' }}>
+              <Link
+                href={`/user/${currentEvent.id}/gallery`}
+                className="w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] press"
+              >
+                <span>Continue to the celebration</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <div className="flex items-center justify-center gap-5 pt-1 text-[14px]">
+                <button
+                  type="button"
+                  onClick={() => setChangingName(true)}
+                  className="font-medium text-[#2D4A3A] py-2 press"
+                >
+                  Change name
+                </button>
+                <span className="w-1 h-1 rounded-full bg-[#1C2820]/25" />
+                <button type="button" onClick={leaveAsGuest} className="font-medium text-[#1C2820]/55 py-2 press">
+                  Not {guestName}? Leave
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4 animate-fade-up" style={{ animationDelay: '120ms' }}>
+              {hostUser && (
+                <div className="p-4 rounded-2xl bg-[#E9EFEA] text-[13px] text-[#1C2820]/75 leading-relaxed">
+                  You’re signed in as host <span className="font-semibold">{hostUser.email}</span>. Joining as a guest
+                  will sign you out of the host portal.
+                </div>
+              )}
 
-        <div className="pt-4 border-t border-[#1C2820]/10 flex items-center justify-between text-xs text-[#1C2820]/60">
-          <div className="flex items-center gap-1.5 text-[#2D4A3A] font-bold">
-            <Lock className="w-3.5 h-3.5" />
-            <span>Private vault available</span>
-          </div>
-          <Link
-            href={`/user/${currentEvent.id}/gallery`}
-            className="hover:text-[#1C2820] font-semibold underline underline-offset-4"
-          >
-            Browse gallery →
-          </Link>
+              <div>
+                <label htmlFor="guest-name" className="sr-only">
+                  Your name
+                </label>
+                <input
+                  id="guest-name"
+                  type="text"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  enterKeyHint="go"
+                  value={nameInput}
+                  onChange={(e) => {
+                    setNameInput(e.target.value);
+                    if (nameError) setNameError('');
+                  }}
+                  placeholder="Your name"
+                  className={`w-full h-14 px-5 rounded-2xl bg-white border text-[17px] font-medium text-[#1C2820] placeholder:text-[#1C2820]/35 focus:outline-none focus:ring-4 transition-all ${
+                    nameError
+                      ? 'border-red-400 focus:ring-red-100'
+                      : 'border-[#1C2820]/12 focus:border-[#2D4A3A] focus:ring-[#2D4A3A]/12'
+                  }`}
+                />
+                <p className={`mt-2 px-1 text-[13px] ${nameError ? 'text-red-600 font-medium' : 'text-[#1C2820]/45'}`}>
+                  {nameError || 'Shown next to the photos you share.'}
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] disabled:opacity-60 press"
+              >
+                <span>{hasJoined ? 'Save & continue' : 'Join the celebration'}</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              {hasJoined && changingName && (
+                <button
+                  type="button"
+                  onClick={() => setChangingName(false)}
+                  className="w-full py-2 text-[14px] font-medium text-[#1C2820]/55 press"
+                >
+                  Cancel
+                </button>
+              )}
+            </form>
+          )}
+
+          {/* What you can do */}
+          {!showWelcomeBack && (
+            <ul className="grid grid-cols-3 gap-2 pt-2 animate-fade-up" style={{ animationDelay: '180ms' }}>
+              {[
+                { icon: Camera, label: 'Share photos' },
+                { icon: Images, label: 'Live gallery' },
+                { icon: Heart, label: 'Vote & react' },
+              ].map(({ icon: Icon, label }) => (
+                <li key={label} className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white border border-[#1C2820]/[0.06]">
+                  <Icon className="w-5 h-5 text-[#2D4A3A]" strokeWidth={1.8} />
+                  <span className="text-[12px] font-medium text-[#1C2820]/70">{label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   HostUser,
 } from '@/lib/initialData';
 import { downloadMemoriesZip, downloadSinglePhoto } from '@/lib/downloadHelper';
+import { generateUUID } from '@/lib/uuid';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import {
   deleteMediaFromR2,
@@ -218,8 +219,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [guestId, setGuestId] = useState<string>('');
   const [guestName, setGuestNameState] = useState<string>('');
   const [hasJoined, setHasJoined] = useState<boolean>(false);
-  const [guestCount, setGuestCount] = useState<number>(148);
-  const [reactionCount, setReactionCount] = useState<number>(1240);
+  const [guestCount, setGuestCount] = useState<number>(0);
+  const [reactionCount, setReactionCount] = useState<number>(0);
 
   // Memories State
   const [memories, setMemories] = useState<MemoryItem[]>(INITIAL_MEMORIES);
@@ -820,7 +821,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         ? data.initialPrompts
         : INITIAL_PROMPTS;
 
-    let eventUuid = data.id && isUuid(data.id) ? data.id : crypto.randomUUID();
+    let eventUuid = data.id && isUuid(data.id) ? data.id : generateUUID();
 
     // Database Insert into Supabase 'events'
     if (isSupabaseConfigured() && hostUser) {
@@ -933,7 +934,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   // Mini-Categories / Prompts Management for current event
   const addPrompt = async (label: string, icon = '🌿') => {
     if (!label.trim()) return;
-    const promptId = crypto.randomUUID();
+    const promptId = generateUUID();
     const newPrompt: PromptItem = {
       id: promptId,
       label: label.trim(),
@@ -1092,7 +1093,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     setGuestNameState(name);
     setHasJoined(true);
     // Give this browser a stable guest id the first time the guest joins
-    const id = guestId || crypto.randomUUID();
+    const id = guestId || generateUUID();
     if (!guestId) setGuestId(id);
     try {
       localStorage.setItem(STORAGE_KEY_GUEST, name);
@@ -1203,7 +1204,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       setGuestName(newEntry.guestName.trim());
     }
 
-    const memoryUuid = crypto.randomUUID();
+    const memoryUuid = generateUUID();
     const eventIdVal = isUuid(currentEvent.id) ? currentEvent.id : null;
 
     const created: MemoryItem = {
@@ -1305,7 +1306,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const eventIdVal = isUuid(currentEvent.id) ? currentEvent.id : null;
 
     const createdList: MemoryItem[] = entries.map((newEntry, idx) => ({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       eventId: currentEvent.id,
       guestName: newEntry.guestName?.trim() || finalAuthor,
       type: newEntry.type || 'photo',
@@ -1396,7 +1397,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const ensureVoterId = (): string => {
     if (hostUser?.id) return hostUser.id;
     if (guestId) return guestId;
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     setGuestId(id);
     voterIdRef.current = id;
     try {

@@ -3,11 +3,72 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     background-color: #FAF8F5;
     color: #1C2820;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
   }
+  /* iOS zooms into any field under 16px; keep form fields at 16px on phones */
+  @media (max-width: 767px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* Height of the guest bottom tab bar (content needs to clear it on phones) */
+:root {
+  --tabbar-h: 64px;
+}
+
+/* Safe-area helpers for iPhone notch / Dynamic Island and home indicator */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe-bar {
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 1.5rem);
+}
+.bottom-safe {
+  bottom: env(safe-area-inset-bottom);
+}
+
+/* Apple-style pressed state for tappable cards and buttons */
+.press {
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* Frosted glass bars */
+.glass {
+  background-color: rgba(250, 248, 245, 0.78);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fadeUp 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes riseUp {
