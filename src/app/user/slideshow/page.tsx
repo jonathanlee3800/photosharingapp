@@ -96,7 +96,7 @@ export default function SlideshowPage() {
             </div>
 
             <blockquote className="font-serif text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight text-white drop-shadow-sm">
-              “{activeSlideMemory.caption}”
+              {activeSlideMemory.caption && `“${activeSlideMemory.caption}”`}
             </blockquote>
 
             {activeSlideMemory.subCaption && (

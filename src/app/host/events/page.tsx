@@ -7,7 +7,6 @@ import {
   Plus,
   QrCode,
   Calendar,
-  MapPin,
   Check,
   ArrowRight,
   Trash2,
@@ -16,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { formatPin } from '@/lib/pin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import HostAuthGuard from '@/components/HostAuthGuard';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -44,14 +44,15 @@ export default function HostEventsPage() {
       });
   }, [eventIdsKey]);
 
-  const handleOpenEvent = (id: string) => {
-    setCurrentEventId(id, true);
-    router.push(`/host/${id}`);
+  // Event pages are addressed by join code; the internal event id is never shown
+  const handleOpenEvent = (ev: { id: string; code: string }) => {
+    setCurrentEventId(ev.id, true);
+    router.push(`/host/${ev.code}`);
   };
 
   return (
     <HostAuthGuard>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1C2820]/10 pb-5">
           <div>
@@ -107,7 +108,7 @@ export default function HostEventsPage() {
             return (
               <div
                 key={ev.id}
-                onClick={() => handleOpenEvent(ev.id)}
+                onClick={() => handleOpenEvent(ev)}
                 className={`bg-white rounded-3xl overflow-hidden border transition-all flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer group ${
                   isCurrent
                     ? 'border-[#2D4A3A] ring-2 ring-[#2D4A3A]/20'
@@ -127,7 +128,7 @@ export default function HostEventsPage() {
                     <div className="absolute top-3 left-3">
                       <span className="px-3 py-1 rounded-full bg-black/65 backdrop-blur-md text-white text-xs font-mono font-bold flex items-center gap-1.5 border border-white/10">
                         <QrCode className="w-3.5 h-3.5 text-[#9BC4A8]" />
-                        <span>ID: {ev.id}</span>
+                        <span>PIN {formatPin(ev.code)}</span>
                       </span>
                     </div>
 
@@ -146,11 +147,6 @@ export default function HostEventsPage() {
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-[#9BC4A8]" />
                           {ev.date}
-                        </span>
-                        <span>·</span>
-                        <span className="flex items-center gap-1 truncate max-w-[150px]">
-                          <MapPin className="w-3 h-3 text-[#9BC4A8]" />
-                          {ev.venue}
                         </span>
                       </div>
                     </div>
@@ -200,7 +196,7 @@ export default function HostEventsPage() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleOpenEvent(ev.id);
+                      handleOpenEvent(ev);
                     }}
                     className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
                   >

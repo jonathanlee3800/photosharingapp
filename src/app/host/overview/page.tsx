@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   LayoutGrid,
   Image as ImageIcon,
@@ -13,30 +12,26 @@ import {
   Trophy,
   Plus,
   Sparkles,
-  ExternalLink,
   ShieldCheck,
   Share2,
   Trash2,
   Calendar,
-  MapPin,
   Tag,
-  ArrowLeft,
   Play,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { formatPin } from '@/lib/pin';
 import type { MemoryItem } from '@/lib/initialData';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import HostEventHeader from '@/components/HostEventHeader';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { generateQrDataUrl, downloadQrCode } from '@/lib/qrHelper';
 
 const EMOJI_OPTIONS = ['🌿', '🥂', '✨', '🕰️', '💃', '📸', '🎉', '💐', '🎂', '💌'];
 
 export default function HostOverviewPage() {
-  const router = useRouter();
   const {
-    hostEvents: events,
     currentEvent,
-    setCurrentEventId,
     memories,
     publicMemories,
     privateMemories,
@@ -52,7 +47,6 @@ export default function HostOverviewPage() {
     addPrompt,
     deletePrompt,
     triggerToast,
-    setIsZipModalOpen,
   } = useEvent();
 
   const [promptInput, setPromptInput] = useState('');
@@ -68,8 +62,8 @@ export default function HostOverviewPage() {
 
   // Generate real QR code for current event
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
-    const targetUrl = `${origin}/user/${currentEvent.id}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+    const targetUrl = `${origin}/user/${currentEvent.code}`;
 
     generateQrDataUrl(targetUrl, { width: 400, margin: 2 }).then((data) => {
       setQrDataUrl(data);
@@ -92,15 +86,15 @@ export default function HostOverviewPage() {
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
-      const url = `${window.location.origin}/user/${currentEvent.id}`;
+      const url = `${window.location.origin}/user/${currentEvent.code}`;
       navigator.clipboard?.writeText(url);
     }
-    triggerToast('Event link copied to clipboard', `/user/${currentEvent.id}`);
+    triggerToast('Event link copied to clipboard', `/user/${currentEvent.code}`);
   };
 
   const handleDownloadQr = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
-    const targetUrl = `${origin}/user/${currentEvent.id}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+    const targetUrl = `${origin}/user/${currentEvent.code}`;
     downloadQrCode(targetUrl, currentEvent.title);
     triggerToast('Downloading high-res QR code PNG');
   };
@@ -115,84 +109,8 @@ export default function HostOverviewPage() {
 
   return (
     <HostAuthGuard>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
-        <div className="space-y-4">
-        {/* Back to All Events */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/host/events"
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-[#1C2820]/15 text-xs font-bold text-[#2D4A3A] hover:bg-[#E9EFEA] transition-all shadow-sm group"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            <span>All Events ({events.length})</span>
-          </Link>
-          <span className="text-xs text-[#1C2820]/50 font-medium">
-            Managing: <span className="font-bold text-[#1C2820]">{currentEvent.title}</span>
-          </span>
-        </div>
-
-        {/* Sub-navigation bar for Host */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1C2820]/10 pb-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/host/${currentEvent.id}`}
-              className="px-4 py-2 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold shadow-sm"
-            >
-              Overview
-            </Link>
-            <Link
-              href={`/host/${currentEvent.id}/photos`}
-              className="px-4 py-2 rounded-xl text-[#1C2820]/70 hover:text-[#1C2820] hover:bg-black/5 text-xs font-semibold transition-colors"
-            >
-              Photos & Videos ({memories.length})
-            </Link>
-            <Link
-              href="/host/events/new"
-              className="px-4 py-2 rounded-xl bg-[#E9EFEA] hover:bg-[#D8E5DA] text-[#2D4A3A] text-xs font-bold transition-colors flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Event</span>
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Event Switcher Selector */}
-            {events.length > 1 && (
-              <select
-                value={currentEvent.id}
-                onChange={(e) => {
-                  const nextId = e.target.value;
-                  setCurrentEventId(nextId, true);
-                  router.push(`/host/${nextId}`);
-                }}
-                className="px-3 py-2 rounded-xl border border-[#1C2820]/20 bg-white text-xs font-bold text-[#1C2820] focus:outline-none"
-              >
-                {events.map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.title} ({ev.id})
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <Link
-              href={`/user/${currentEvent.id}/projector`}
-              target="_blank"
-              className="px-4 py-2 rounded-xl border border-[#1C2820]/20 text-xs font-bold text-[#1C2820] hover:bg-[#E9EFEA] flex items-center gap-2 transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-[#2D4A3A]" />
-              <span>Projector</span>
-            </Link>
-            <button
-              onClick={() => setIsZipModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white text-xs font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export ZIP</span>
-            </button>
-          </div>
-        </div>
-        </div>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+        <HostEventHeader active="overview" />
 
         {/* Hero Intro */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -201,16 +119,12 @@ export default function HostOverviewPage() {
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3 text-[#2D4A3A]" /> {currentEvent.date}
               </span>
-              <span>·</span>
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-[#2D4A3A]" /> {currentEvent.venue}
-              </span>
             </div>
             <h1 className="font-serif text-4xl sm:text-5xl font-medium text-[#1C2820] mt-1">
               {currentEvent.title}
             </h1>
             <p className="text-sm text-[#1C2820]/65 mt-1 font-medium">
-              Event ID: <span className="font-bold text-[#2D4A3A] font-mono">{currentEvent.id}</span> · Collecting candid memories from all your guests.
+              Event PIN: <span className="font-bold text-[#2D4A3A] tabular-nums tracking-wider">{formatPin(currentEvent.code)}</span> · Collecting candid memories from all your guests.
             </p>
           </div>
 
@@ -292,7 +206,7 @@ export default function HostOverviewPage() {
                 </div>
                 <div className="flex items-center justify-between bg-[#FAF8F5] rounded-xl px-4 py-2.5 border border-[#1C2820]/15">
                   <span className="text-xs sm:text-sm font-mono font-semibold text-[#1C2820] truncate pr-2">
-                    /user/{currentEvent.id}
+                    /user/{currentEvent.code}
                   </span>
                   <button
                     onClick={handleCopyLink}
@@ -302,8 +216,14 @@ export default function HostOverviewPage() {
                     <Copy className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="text-xs text-[#1C2820]/60 font-medium">
-                  Unique Event ID: <span className="font-bold text-[#2D4A3A] font-mono">{currentEvent.id}</span>
+                {/* Kahoot-style: guests can also type the PIN at /join */}
+                <div className="rounded-xl bg-[#E9EFEA] px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#2D4A3A]/80">
+                    Event PIN · guests can type it at /join
+                  </div>
+                  <div className="text-3xl font-bold text-[#1C2820] tracking-wider tabular-nums mt-0.5">
+                    {formatPin(currentEvent.code)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -405,13 +325,13 @@ export default function HostOverviewPage() {
                     <Trophy className="w-3.5 h-3.5" /> Winner · {lastWinner.votes} votes
                   </div>
                   <div className="text-[#1C2820]/70 font-medium truncate">
-                    “{lastWinner.caption}” · {lastWinner.guestName}
+                    {lastWinner.caption && `“${lastWinner.caption}” · `}{lastWinner.guestName}
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {votingRound.isOpen ? (
                 <button
                   disabled={roundBusy}
@@ -445,14 +365,14 @@ export default function HostOverviewPage() {
                       await startVotingRound(selectedRoundPromptId, roundMinutes || null);
                       setRoundBusy(false);
                     }}
-                    className="flex-1 py-3 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-60"
+                    className="flex-1 min-w-[160px] py-3 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-60"
                   >
                     <Play className="w-4 h-4" /> Start Voting Round
                   </button>
                 </>
               )}
               <Link
-                href={`/user/${currentEvent.id}/vote`}
+                href={`/user/${currentEvent.code}/vote`}
                 className="px-4 py-3 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] transition-colors"
               >
                 View
@@ -502,7 +422,7 @@ export default function HostOverviewPage() {
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
                   placeholder="New category name (e.g. Best dance moves)"
-                  className="flex-1 px-3 py-2 rounded-xl border border-[#1C2820]/20 text-xs font-semibold"
+                  className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-[#1C2820]/20 text-xs font-semibold"
                 />
                 <button
                   type="submit"

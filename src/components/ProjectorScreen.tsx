@@ -14,6 +14,7 @@ import {
 import { MemoryItem, PromptItem } from '@/lib/initialData';
 import { useEvent, FloatingEmoji } from '@/context/EventContext';
 import { generateQrDataUrl } from '@/lib/qrHelper';
+import { formatPin } from '@/lib/pin';
 
 interface ProjectorScreenProps {
   memories?: MemoryItem[];
@@ -58,15 +59,18 @@ export default function ProjectorScreen({
     (() => eventContext.setIsSlideshowPlaying((p) => !p));
 
   const [qrDataUrl, setQrDataUrl] = useState('');
+  // Site address shown on screen for typing the PIN ("yoursite.com/join"); set on the client
+  const [joinHost, setJoinHost] = useState('');
 
   useEffect(() => {
     const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
-    const targetUrl = `${origin}/user/${currentEvent.id}`;
+      typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+    setJoinHost(origin.replace(/^https?:\/\//, ''));
+    const targetUrl = `${origin}/user/${currentEvent.code}`;
     generateQrDataUrl(targetUrl, { width: 200, margin: 1 }).then((data) => {
       setQrDataUrl(data);
     });
-  }, [currentEvent.id]);
+  }, [currentEvent.id, currentEvent.code]);
 
   // Keyboard navigation for presentation (host only)
   useEffect(() => {
@@ -135,7 +139,7 @@ export default function ProjectorScreen({
           </span>
           <span className="text-white/20 text-3xl font-light mx-1 hidden sm:inline">|</span>
           <span className="text-xs font-sans tracking-[0.25em] uppercase text-white/60 font-bold hidden sm:inline">
-            {currentEvent.date} · {currentEvent.venue}
+            {currentEvent.date}
           </span>
         </div>
         <div className="flex items-center gap-2.5 text-[11px] font-sans font-bold tracking-[0.2em] uppercase text-[#F4F3F0]">
@@ -211,7 +215,7 @@ export default function ProjectorScreen({
           </div>
 
           <h2 className="text-3xl sm:text-5xl lg:text-6xl text-[#FAF8F5] leading-[1.08] mb-3 font-normal drop-shadow-md">
-            “{activeMemory.caption}”
+            {activeMemory.caption && `“${activeMemory.caption}”`}
           </h2>
 
           <div className="text-sm sm:text-base font-sans text-white/70 font-medium">
@@ -250,11 +254,14 @@ export default function ProjectorScreen({
             <div className="h-10 w-px bg-white/20 hidden sm:block"></div>
 
             <div className="text-right">
-              <div className="text-base font-mono font-bold text-[#FAF8F5] leading-tight">
-                /user/{currentEvent.id}
-              </div>
               <div className="text-[10px] text-white/60 tracking-wider font-bold uppercase">
-                ID: {currentEvent.id} · No app needed
+                Go to {joinHost ? `${joinHost}/join` : '/join'} · PIN
+              </div>
+              <div className="text-3xl sm:text-4xl font-bold text-[#FAF8F5] leading-none tracking-wider tabular-nums mt-1">
+                {formatPin(currentEvent.code)}
+              </div>
+              <div className="text-[10px] text-white/50 tracking-wider font-semibold uppercase mt-1">
+                or scan the QR · No app needed
               </div>
             </div>
 

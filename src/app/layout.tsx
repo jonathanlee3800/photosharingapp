@@ -25,12 +25,12 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Memory Aisle — Wedding Photo Sharing Platform',
+  title: 'Memorie Aisle — Wedding Photo Sharing Platform',
   description:
     'Web-based guest photo sharing, live rolling slideshow, voting rounds, and owner archive downloads.',
   appleWebApp: {
     capable: true,
-    title: 'Memory Aisle',
+    title: 'Memorie Aisle',
     statusBarStyle: 'default',
   },
 };

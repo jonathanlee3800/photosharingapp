@@ -29,10 +29,10 @@ export default function JoinPage() {
     setNameError('');
     setSubmitting(true);
     await joinCelebration(nameInput.trim());
-    router.push(`/user/${currentEvent.id}/gallery`);
+    router.push(`/user/${currentEvent.code}/gallery`);
   };
 
-  const meta = [currentEvent.date, currentEvent.venue].filter(Boolean).join(' · ');
+  const meta = currentEvent.date;
 
   return (
     <div className="flex-1 flex flex-col md:items-center md:justify-center md:py-12 md:px-6">
@@ -49,7 +49,7 @@ export default function JoinPage() {
             <span className="w-7 h-7 rounded-[9px] bg-white/15 backdrop-blur-md flex items-center justify-center font-serif text-base font-bold">
               m
             </span>
-            <span className="font-serif text-[17px] tracking-tight">memory aisle</span>
+            <span className="font-serif text-[17px] tracking-tight">memorie aisle</span>
           </span>
           <div className="absolute inset-x-0 bottom-0 px-6 pb-12 md:pb-10 text-white animate-fade-up">
             {meta && (
@@ -75,7 +75,7 @@ export default function JoinPage() {
           {showWelcomeBack ? (
             <div className="space-y-3 animate-fade-up" style={{ animationDelay: '120ms' }}>
               <Link
-                href={`/user/${currentEvent.id}/gallery`}
+                href={`/user/${currentEvent.code}/gallery`}
                 className="w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] press"
               >
                 <span>Continue to the celebration</span>

@@ -14,14 +14,15 @@ export default function Navbar() {
   const isGuest = !isHostLoggedIn;
 
   // If on full projector screen, we don't show the standard site navbar
-  if (pathname === '/projector' || pathname === '/display' || pathname?.endsWith('/projector')) {
+  // Full-screen pages with their own chrome: projector and the Kahoot-style PIN screen
+  if (pathname === '/projector' || pathname === '/display' || pathname === '/join' || pathname?.endsWith('/projector')) {
     return null;
   }
 
-  const base = `/user/${currentEvent.id}`;
+  const base = `/user/${currentEvent.code}`;
 
   // The guest join/home screen has a full-bleed cover photo, so it runs edge to edge with no bar
-  if (isGuest && pathname === base) {
+  if (isGuest && decodeURIComponent(pathname || '').toLowerCase() === base.toLowerCase()) {
     return null;
   }
 
@@ -59,14 +60,14 @@ export default function Navbar() {
               <div className="flex flex-col min-w-0">
                 {/* Phones: the event is what guests care about, so it leads */}
                 <span className="md:hidden font-serif text-[19px] font-semibold tracking-tight text-[#1C2820] leading-tight truncate">
-                  {isGuest ? currentEvent.title : 'memory aisle'}
+                  {isGuest ? currentEvent.title : 'memorie aisle'}
                 </span>
                 <span className="md:hidden text-[10px] uppercase tracking-[0.14em] text-[#2D4A3A]/80 font-bold leading-tight">
-                  {isGuest ? 'memory aisle' : 'Host portal'}
+                  {isGuest ? 'memorie aisle' : 'Host portal'}
                 </span>
                 {/* Desktop */}
                 <span className="hidden md:block font-serif text-2xl tracking-tight text-[#1C2820] leading-none">
-                  memory aisle
+                  memorie aisle
                 </span>
                 <span className="hidden md:block text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-xs">
                   {currentEvent.title}

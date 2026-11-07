@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Calendar,
-  MapPin,
   QrCode,
   Plus,
   Trash2,
@@ -22,7 +21,6 @@ import {
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { PromptItem } from '@/lib/initialData';
-import { generateQrDataUrl } from '@/lib/qrHelper';
 import HostAuthGuard from '@/components/HostAuthGuard';
 import DatePicker from '@/components/DatePicker';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
@@ -50,7 +48,7 @@ const EMOJI_OPTIONS = ['🌿', '🥂', '✨', '🕰️', '💃', '📸', '🎉',
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const { events, createEvent, triggerToast } = useEvent();
+  const { createEvent, triggerToast } = useEvent();
 
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(() => {
@@ -61,16 +59,9 @@ export default function CreateEventPage() {
     ];
     return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
   });
-  const [venue, setVenue] = useState('The Glasshouse');
-  const [uniqueEventId, setUniqueEventId] = useState(() => {
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let slug = 'evt-';
-    for (let i = 0; i < 6; i++) {
-      slug += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return slug;
-  });
-  const [codeError, setCodeError] = useState('');
+  // The 6-digit event PIN is assigned by the database when the event is created
+  const [submitError, setSubmitError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   // Cover photo selection & custom upload state
   const [selectedCover, setSelectedCover] = useState(0);
@@ -80,39 +71,13 @@ export default function CreateEventPage() {
   const [coverFileName, setCoverFileName] = useState<string | null>(null);
 
   // Mini-Categories State for this new event
+  // Start with a single category; hosts add more if they want
   const [categories, setCategories] = useState<PromptItem[]>([
     { id: 'cat-1', label: 'A moment to remember', icon: '🌿' },
-    { id: 'cat-2', label: 'Oldest memory together', icon: '🕰️' },
-    { id: 'cat-3', label: 'Most candid & funny shot', icon: '🥂' },
-    { id: 'cat-4', label: 'Dance floor magic', icon: '✨' },
   ]);
 
   const [newCatLabel, setNewCatLabel] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('📸');
-
-  // Generated QR preview
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
-
-  const regenerateEventId = () => {
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let slug = 'evt-';
-    for (let i = 0; i < 6; i++) {
-      slug += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setUniqueEventId(slug);
-    setCodeError('');
-  };
-
-  // Generate QR code whenever uniqueEventId changes
-  useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memoryaisle.app';
-    const cleanId = uniqueEventId.trim().toLowerCase() || 'evt-new';
-    const targetUrl = `${origin}/user/${cleanId}`;
-
-    generateQrDataUrl(targetUrl, { width: 320, margin: 2 }).then((data) => {
-      setQrDataUrl(data);
-    });
-  }, [uniqueEventId]);
 
   const handleCoverFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,40 +142,26 @@ export default function CreateEventPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
-    const cleanId = uniqueEventId
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '');
-
-    if (!cleanId) {
-      setCodeError('Please provide a valid unique Event ID.');
-      return;
-    }
-
-    const isDuplicate = events.some(
-      (ev) => ev.id.toLowerCase() === cleanId || ev.code.toLowerCase() === cleanId
-    );
-    if (isDuplicate) {
-      setCodeError(`Event ID "${cleanId}" is already in use. Click Generate New ID.`);
-      return;
-    }
+    if (!title.trim() || isCreating) return;
 
     const finalCover = isCustomCoverSelected && customCoverUrl
       ? customCoverUrl
       : COVER_PRESETS[selectedCover]?.url || COVER_PRESETS[0].url;
 
-    const newEvent = await createEvent({
-      title: title.trim(),
-      date: date.trim(),
-      venue: venue.trim() || 'The Glasshouse',
-      code: cleanId.toUpperCase(),
-      coverUrl: finalCover,
-      initialPrompts: categories,
-    });
-
-    router.push(`/host/${newEvent.id}`);
+    setSubmitError('');
+    setIsCreating(true);
+    try {
+      const newEvent = await createEvent({
+        title: title.trim(),
+        date: date.trim(),
+        coverUrl: finalCover,
+        initialPrompts: categories,
+      });
+      router.push(`/host/${newEvent.code}`);
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Could not create the event. Please try again.');
+      setIsCreating(false);
+    }
   };
 
   const activeCoverUrl = isCustomCoverSelected && customCoverUrl
@@ -219,7 +170,7 @@ export default function CreateEventPage() {
 
   return (
     <HostAuthGuard>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
         <Link
           href="/host/events"
           className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1C2820]/60 hover:text-[#1C2820] transition-colors"
@@ -252,78 +203,36 @@ export default function CreateEventPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5">
-                  Event Title / Couple Names *
+                  Event Title *
                 </label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Joshua & Simone, Sarah & David Wedding"
+                  placeholder="Event title"
                   className="w-full px-4 py-3 rounded-xl border border-[#1C2820]/20 text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                    <span>Event Date</span>
-                  </label>
-                  <DatePicker value={date} onChange={setDate} />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                    <span>Venue / Location</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={venue}
-                    onChange={(e) => setVenue(e.target.value)}
-                    placeholder="e.g. The Glasshouse"
-                    className="w-full px-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs font-semibold focus:outline-none focus:border-[#2D4A3A]"
-                  />
-                </div>
+              <div className="sm:max-w-[50%]">
+                <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#2D4A3A]" />
+                  <span>Event Date</span>
+                </label>
+                <DatePicker value={date} onChange={setDate} />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide">
-                    Guest Passcode & QR Identifier
-                  </label>
-                  <button
-                    type="button"
-                    onClick={regenerateEventId}
-                    className="text-[11px] font-bold text-[#2D4A3A] hover:underline"
-                  >
-                    Regenerate Unique ID
-                  </button>
+              <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#1C2820]/10 flex items-start gap-3">
+                <QrCode className="w-5 h-5 text-[#2D4A3A] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-bold text-[#1C2820] uppercase tracking-wide">Event PIN</div>
+                  <p className="text-[11px] text-[#1C2820]/60 font-medium mt-0.5 leading-relaxed">
+                    A unique 6-digit PIN (e.g. <span className="font-bold tabular-nums text-[#2D4A3A]">482 913</span>) is
+                    created automatically when you launch the event. Guests type it at /join or scan the QR code, and it
+                    can’t be changed.
+                  </p>
                 </div>
-                <input
-                  type="text"
-                  value={uniqueEventId}
-                  onChange={(e) => {
-                    setUniqueEventId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
-                    if (codeError) setCodeError('');
-                  }}
-                  placeholder="e.g. evt-8k3f9a"
-                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-mono font-bold tracking-wider focus:outline-none ${
-                    codeError
-                      ? 'border-red-500 focus:border-red-500'
-                      : 'border-[#1C2820]/20 focus:border-[#2D4A3A]'
-                  }`}
-                />
-                {codeError ? (
-                  <span className="block text-[11px] text-red-600 mt-1 font-semibold">
-                    {codeError}
-                  </span>
-                ) : (
-                  <span className="block text-[10px] text-[#1C2820]/50 mt-1 font-medium">
-                    Guest URL: <span className="font-mono font-bold text-[#2D4A3A]">/user/{uniqueEventId || 'evt-id'}</span> · Host URL: <span className="font-mono font-bold text-[#2D4A3A]">/host/{uniqueEventId || 'evt-id'}</span>
-                  </span>
-                )}
               </div>
             </div>
 
@@ -460,8 +369,8 @@ export default function CreateEventPage() {
                     Guests can select these categories when uploading candid photos or video toasts.
                   </p>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold">
-                  {categories.length} Prompts
+                <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold whitespace-nowrap shrink-0">
+                  {categories.length} {categories.length === 1 ? 'Prompt' : 'Prompts'}
                 </span>
               </div>
 
@@ -562,25 +471,18 @@ export default function CreateEventPage() {
                   </div>
                 </div>
 
-                {/* QR Code Graphic */}
-                {qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt="Event QR code"
-                    className="w-40 h-40 mx-auto object-contain"
-                  />
-                ) : (
-                  <div className="w-40 h-40 mx-auto flex items-center justify-center text-[#1C2820]/40">
-                    <QrCode className="w-14 h-14 animate-pulse" />
-                  </div>
-                )}
+                {/* QR placeholder: the real QR needs the join code, which is assigned on launch */}
+                <div className="w-40 h-40 mx-auto rounded-2xl border-2 border-dashed border-[#1C2820]/15 flex flex-col items-center justify-center gap-2 text-[#1C2820]/40">
+                  <QrCode className="w-12 h-12" />
+                  <span className="text-[10px] font-semibold text-center px-3">Ready after launch</span>
+                </div>
 
                 <div className="mt-3 text-center">
                   <div className="font-serif text-base font-bold text-[#1C2820] truncate">
                     {title || 'Joshua & Simone'}
                   </div>
                   <div className="text-[10px] font-mono font-bold tracking-wider text-[#2D4A3A] mt-0.5">
-                    /user/{uniqueEventId}
+                    PIN: • • •  • • •
                   </div>
                 </div>
               </div>
@@ -588,12 +490,15 @@ export default function CreateEventPage() {
               <div className="space-y-2">
                 <button
                   type="submit"
-                  disabled={!title.trim()}
+                  disabled={!title.trim() || isCreating}
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Launch Event & Save QR</span>
+                  <span>{isCreating ? 'Creating your event…' : 'Launch Event & Save QR'}</span>
                 </button>
+                {submitError && (
+                  <p className="text-[11px] text-red-600 font-semibold text-center">{submitError}</p>
+                )}
               </div>
             </div>
           </div>

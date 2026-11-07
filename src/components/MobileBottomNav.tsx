@@ -11,8 +11,9 @@ export default function MobileBottomNav() {
   const pathname = usePathname() || '';
   const { currentEvent, isHostLoggedIn, hasJoined, votingRound } = useEvent();
 
-  const base = `/user/${currentEvent.id}`;
-  const onJoinPage = pathname === base;
+  const base = `/user/${currentEvent.code}`;
+  // Join codes may arrive in any case (e.g. typed by hand), so compare case-insensitively
+  const onJoinPage = decodeURIComponent(pathname).toLowerCase() === base.toLowerCase();
 
   // Guest-only, and not on: full-screen projector, the upload flow (has its own bottom button),
   // or the join screen before the guest has entered their name

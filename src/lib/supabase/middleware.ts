@@ -54,6 +54,20 @@ export async function updateSession(request: NextRequest) {
     return redirect
   }
 
+  // Old guest pages without an event in the address (e.g. /user/join, /user/gallery, /gallery) would
+  // just show whatever event this browser opened last. Send them to the PIN screen instead.
+  const eventlessGuestPage =
+    /^\/user(\/(join|gallery|upload|vote|slideshow|projector))?\/?$/.test(pathname) ||
+    /^\/(gallery|upload|slideshow|vote|projector|display|live)\/?$/.test(pathname)
+  if (eventlessGuestPage) {
+    const pinUrl = request.nextUrl.clone()
+    pinUrl.pathname = '/join'
+    pinUrl.search = ''
+    const redirect = NextResponse.redirect(pinUrl)
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+    return redirect
+  }
+
   // Guests never need to log in, so only the host portal is protected.
   // The sign in / sign up pages themselves stay public.
   const isHostArea = pathname === '/host' || pathname.startsWith('/host/')

@@ -210,7 +210,7 @@ export default function PhotoLightboxModal({
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="space-y-1 flex-1 pr-1 w-full">
             <blockquote className="font-serif italic text-[18px] sm:text-2xl text-white/95 leading-snug line-clamp-2 sm:line-clamp-none">
-              “{memory.caption}”
+              {memory.caption && `“${memory.caption}”`}
             </blockquote>
 
             <div className="flex items-center gap-2 sm:gap-3 text-[13px] sm:text-xs text-white/70 flex-wrap">

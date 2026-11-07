@@ -12,6 +12,7 @@ import {
 } from '@/lib/initialData';
 import { downloadMemoriesZip, downloadSinglePhoto } from '@/lib/downloadHelper';
 import { generateUUID } from '@/lib/uuid';
+import { formatPin } from '@/lib/pin';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import {
   deleteMediaFromR2,
@@ -71,8 +72,7 @@ interface EventContextType {
     id?: string;
     title: string;
     date: string;
-    venue: string;
-    code?: string;
+    venue?: string;
     coverUrl?: string;
     initialPrompts?: PromptItem[];
   }) => Promise<EventItem>;
@@ -268,7 +268,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
           id: e.id,
           title: e.title,
           date: e.date || '24 May 2026',
-          venue: e.venue || 'The Glasshouse',
+          venue: e.venue || '',
           code: e.join_code,
           slug: e.slug || e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           coverUrl:
@@ -473,11 +473,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const getEventById = (idOrCode: string): EventItem | undefined => {
     const clean = idOrCode.trim().toLowerCase();
     if (!clean) return undefined;
-    return events.find(
-      (e) =>
-        e.id.toLowerCase() === clean ||
-        e.code.toLowerCase() === clean ||
-        e.slug.toLowerCase() === clean
+    // Join code first (what guests use), so a title slug like "12345" can never shadow another event's code
+    return (
+      events.find((e) => e.code.toLowerCase() === clean) ||
+      events.find((e) => e.id.toLowerCase() === clean) ||
+      events.find((e) => e.slug.toLowerCase() === clean)
     );
   };
 
@@ -654,7 +654,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     publicMemories[currentSlideIdx % Math.max(1, publicMemories.length)] ||
     eventMemories[0] || {
       id: 'empty',
-      guestName: 'Memory Aisle',
+      guestName: 'Memorie Aisle',
       type: 'photo',
       url:
         currentEvent.coverUrl ||
@@ -805,18 +805,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
     id?: string;
     title: string;
     date: string;
-    venue: string;
-    code?: string;
+    venue?: string;
     coverUrl?: string;
     initialPrompts?: PromptItem[];
   }): Promise<EventItem> => {
-    const randomSuffix = Math.random().toString(36).substring(2, 8).toLowerCase();
-    const rawCode = (data.code?.trim() || `EVT-${randomSuffix}`).toUpperCase();
+    // The 6-digit event PIN is assigned by the database and can't be chosen or changed
+    let joinCode = '';
     const slug =
       data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') ||
       'wedding-event';
 
-    const defaultPromptsList =
+    let defaultPromptsList =
       data.initialPrompts && data.initialPrompts.length > 0
         ? data.initialPrompts
         : INITIAL_PROMPTS;
@@ -833,8 +832,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
               id: eventUuid,
               title: data.title.trim(),
               date: data.date.trim() || '24 May 2026',
-              venue: data.venue.trim() || 'The Glasshouse',
-              join_code: rawCode,
+              venue: data.venue?.trim() || '',
               slug,
               cover_url:
                 data.coverUrl ||
@@ -845,24 +843,34 @@ export function EventProvider({ children }: { children: ReactNode }) {
           .select()
           .single();
 
-        if (dbEvent) {
-          eventUuid = dbEvent.id;
-          // Insert custom prompts into 'prompts' table
-          if (defaultPromptsList.length > 0) {
-            await supabase.from('prompts').insert(
+        if (insertError || !dbEvent) {
+          console.warn('Supabase event insert failed:', insertError);
+          triggerToast('Could not create the event', insertError?.message || 'Please try again');
+          throw new Error(insertError?.message || 'Event insert failed');
+        }
+
+        eventUuid = dbEvent.id;
+        joinCode = dbEvent.join_code;
+        // Save the starter categories and use their real ids (so uploads are tagged with real categories)
+        if (defaultPromptsList.length > 0) {
+          const { data: savedPrompts, error: promptsError } = await supabase
+            .from('prompts')
+            .insert(
               defaultPromptsList.map((p) => ({
                 event_id: eventUuid,
                 label: p.label,
                 icon: p.icon || '🌿',
               }))
-            );
+            )
+            .select();
+          if (promptsError) console.warn('Supabase prompts insert failed:', promptsError);
+          if (savedPrompts && savedPrompts.length > 0) {
+            defaultPromptsList = savedPrompts.map((p: any) => ({ id: p.id, label: p.label, icon: p.icon || '🌿' }));
           }
-        } else if (insertError) {
-          console.warn('Supabase event insert failed:', insertError);
-          triggerToast('Cloud sync notice', insertError.message);
         }
       } catch (err) {
         console.warn('createEvent Supabase exception:', err);
+        throw err;
       }
     }
 
@@ -870,8 +878,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
       id: eventUuid,
       title: data.title.trim(),
       date: data.date.trim() || '24 May 2026',
-      venue: data.venue.trim() || 'The Glasshouse',
-      code: rawCode,
+      venue: data.venue?.trim() || '',
+      code: joinCode,
       slug,
       coverUrl:
         data.coverUrl ||
@@ -884,7 +892,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     setEvents((prev) => [newEvent, ...prev]);
     setCurrentEventIdState(newEvent.id);
-    triggerToast(`Created celebration "${newEvent.title}"!`, `Passcode: ${newEvent.code}`);
+    triggerToast(`Created celebration "${newEvent.title}"!`, `Event PIN: ${formatPin(newEvent.code)}`);
     return newEvent;
   };
 
@@ -1312,11 +1320,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
       type: newEntry.type || 'photo',
       duration: newEntry.type === 'video' ? (newEntry.duration || '0:19') : undefined,
       url: newEntry.url,
+      // Hosts may leave the caption blank; guests' blank captions get a default wish
       caption:
         newEntry.caption.trim() ||
-        `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
-      subCaption:
-        newEntry.type === 'video'
+        (hostUser ? '' : `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`),
+      subCaption: hostUser
+        ? undefined
+        : newEntry.type === 'video'
           ? 'Video well-wish uploaded by guest.'
           : 'Shared live from the wedding reception.',
       promptId: newEntry.promptId || prompts[0]?.id || 'fav-chapter',
@@ -1420,10 +1430,24 @@ export function EventProvider({ children }: { children: ReactNode }) {
       return;
     }
     const nextVoted = !target.votedByMe;
+    // One vote per round: voting for a new photo moves the vote off the previous pick
+    const previousPick = nextVoted
+      ? memories.find(
+          (m) => m.id !== memoryId && m.votedByMe && m.eventId === target.eventId && m.promptId === target.promptId
+        )
+      : undefined;
+    const snapshot = memories;
 
     // Optimistic update; corrected below with the server's answer
     const applyVote = (voted: boolean, votes: number) =>
       setMemories((prev) => prev.map((m) => (m.id === memoryId ? { ...m, votedByMe: voted, votes } : m)));
+    if (previousPick) {
+      setMemories((prev) =>
+        prev.map((m) =>
+          m.id === previousPick.id ? { ...m, votedByMe: false, votes: Math.max(0, m.votes - 1) } : m
+        )
+      );
+    }
     applyVote(nextVoted, nextVoted ? target.votes + 1 : Math.max(0, target.votes - 1));
     if (nextVoted) sendReaction('🥂');
 
@@ -1435,11 +1459,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
     });
     if (error || !data) {
       console.warn('toggleVote error:', error);
-      applyVote(target.votedByMe ?? false, target.votes);
+      setMemories(snapshot);
       triggerToast('Vote not saved', error?.message || 'Please check your connection and try again');
       return;
     }
     applyVote(Boolean(data.voted), Number(data.votes) || 0);
+    // Any photo the server moved the vote away from is no longer "voted by me"
+    const movedFrom: string[] = Array.isArray(data.moved_from) ? data.moved_from : [];
+    if (movedFrom.length > 0) {
+      setMemories((prev) => prev.map((m) => (movedFrom.includes(m.id) ? { ...m, votedByMe: false } : m)));
+      triggerToast('Vote moved', 'You have one vote per round');
+    }
   };
 
   const toggleSpotlight = async (memoryId: string) => {

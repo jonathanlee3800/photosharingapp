@@ -97,13 +97,13 @@ export default function GalleryPage() {
         </div>
         <div className="hidden md:flex items-center gap-3 shrink-0">
           <Link
-            href={`/user/${currentEvent.id}/vote`}
+            href={`/user/${currentEvent.code}/vote`}
             className="h-11 px-4 rounded-2xl bg-[#E9EFEA] text-[#2D4A3A] text-[14px] font-semibold flex items-center gap-2 press"
           >
             <Trophy className="w-4 h-4" /> Contest
           </Link>
           <Link
-            href={`/user/${currentEvent.id}/upload`}
+            href={`/user/${currentEvent.code}/upload`}
             className="h-11 px-5 rounded-2xl bg-[#2D4A3A] text-white text-[14px] font-semibold flex items-center gap-2 press"
           >
             <Plus className="w-4 h-4" /> Share a photo
@@ -115,7 +115,7 @@ export default function GalleryPage() {
       {roundPrompt && (
         <div className="px-4 md:px-8 pb-4">
           <Link
-            href={`/user/${currentEvent.id}/vote`}
+            href={`/user/${currentEvent.code}/vote`}
             className="flex items-center gap-3 p-4 rounded-[22px] bg-[#2D4A3A] text-white press animate-fade-up"
           >
             <span className="relative flex w-10 h-10 rounded-full bg-white/15 items-center justify-center shrink-0">
@@ -171,7 +171,7 @@ export default function GalleryPage() {
                 On the big screen
               </span>
               <span className="md:hidden absolute bottom-4 left-4 right-4 text-white">
-                <span className="block font-serif text-[22px] leading-snug line-clamp-2">“{spotlight.caption}”</span>
+                <span className="block font-serif text-[22px] leading-snug line-clamp-2">{spotlight.caption && `“${spotlight.caption}”`}</span>
                 <span className="block text-[13px] text-white/80 mt-1">{spotlight.guestName}</span>
               </span>
             </button>
@@ -181,7 +181,7 @@ export default function GalleryPage() {
                 <p className="text-[12px] uppercase tracking-[0.14em] font-semibold text-[#2D4A3A]/80">
                   {getPrompt(spotlight.promptId).icon} {getPrompt(spotlight.promptId).label}
                 </p>
-                <blockquote className="font-serif text-[30px] leading-snug text-[#1C2820]">“{spotlight.caption}”</blockquote>
+                <blockquote className="font-serif text-[30px] leading-snug text-[#1C2820]">{spotlight.caption && `“${spotlight.caption}”`}</blockquote>
                 <p className="text-[14px] text-[#1C2820]/60">
                   {spotlight.guestName} · {spotlight.timestamp}
                 </p>
@@ -335,7 +335,7 @@ export default function GalleryPage() {
           </p>
           {!searchQuery && (
             <Link
-              href={`/user/${currentEvent.id}/upload`}
+              href={`/user/${currentEvent.code}/upload`}
               className="mt-2 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"
             >
               <Camera className="w-5 h-5" /> Share a photo
