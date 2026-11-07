@@ -4,6 +4,8 @@ import './globals.css';
 import { EventProvider } from '@/context/EventContext';
 import Navbar from '@/components/Navbar';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import GuestFooter from '@/components/GuestFooter';
+import LiveRoundSheet from '@/components/LiveRoundSheet';
 import ToastNotification from '@/components/ToastNotification';
 import ZipExportModal from '@/components/ZipExportModal';
 
@@ -23,16 +25,23 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'withlove — Wedding Photo Sharing Platform',
+  title: 'Memorie Aisle — Wedding Photo Sharing Platform',
   description:
     'Web-based guest photo sharing, live rolling slideshow, voting rounds, and owner archive downloads.',
+  appleWebApp: {
+    capable: true,
+    title: 'Memorie Aisle',
+    statusBarStyle: 'default',
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#182B24',
+  // Let the layout extend under the iPhone notch / home indicator (padded with safe-area insets)
+  viewportFit: 'cover',
+  themeColor: '#FAF8F5',
 };
 
 export default function RootLayout({
@@ -42,13 +51,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${cormorant.variable} ${plusJakarta.variable}`}>
-      <body className="antialiased min-h-screen bg-[#FAF8F5] text-[#1C2820] flex flex-col font-sans pb-16 md:pb-0">
+      <body className="antialiased min-h-[100dvh] bg-[#FAF8F5] text-[#1C2820] flex flex-col font-sans">
         <EventProvider>
           <Navbar />
           <div className="flex-1 flex flex-col">
             {children}
           </div>
+          <GuestFooter />
           <MobileBottomNav />
+          <LiveRoundSheet />
           <ToastNotification />
           <ZipExportModal />
         </EventProvider>

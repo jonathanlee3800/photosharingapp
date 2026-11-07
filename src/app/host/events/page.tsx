@@ -1,13 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
   QrCode,
   Calendar,
-  MapPin,
   Check,
   ArrowRight,
   Trash2,
@@ -16,20 +15,44 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { formatPin } from '@/lib/pin';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export default function HostEventsPage() {
   const router = useRouter();
-  const { events, currentEvent, setCurrentEventId, deleteEvent, memories, hostUser } = useEvent();
+  const { hostEvents: events, currentEvent, setCurrentEventId, deleteEvent } = useEvent();
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
-  const handleOpenEvent = (id: string) => {
-    setCurrentEventId(id, true);
-    router.push(`/host/${id}`);
+  // Post counts per event: fetch only the event_id column (no media) instead of loading every post
+  const [postCounts, setPostCounts] = useState<Record<string, number>>({});
+  const eventIdsKey = events.map((e) => e.id).join(',');
+  useEffect(() => {
+    const ids = eventIdsKey.split(',').filter(Boolean);
+    if (!isSupabaseConfigured() || ids.length === 0) return;
+    supabase
+      .from('posts')
+      .select('event_id')
+      .in('event_id', ids)
+      .then(({ data }) => {
+        const counts: Record<string, number> = {};
+        (data || []).forEach((p: { event_id: string }) => {
+          counts[p.event_id] = (counts[p.event_id] || 0) + 1;
+        });
+        setPostCounts(counts);
+      });
+  }, [eventIdsKey]);
+
+  // Event pages are addressed by join code; the internal event id is never shown
+  const handleOpenEvent = (ev: { id: string; code: string }) => {
+    setCurrentEventId(ev.id, true);
+    router.push(`/host/${ev.code}`);
   };
 
   return (
     <HostAuthGuard>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1C2820]/10 pb-5">
           <div>
@@ -80,14 +103,12 @@ export default function HostEventsPage() {
           {/* Event Cards */}
           {events.map((ev) => {
             const isCurrent = ev.id === currentEvent.id;
-            const eventMemoriesCount = memories.filter(
-              (m) => m.eventId === ev.id || (!m.eventId && ev.id === 'event-1')
-            ).length;
+            const eventMemoriesCount = postCounts[ev.id] || 0;
 
             return (
               <div
                 key={ev.id}
-                onClick={() => handleOpenEvent(ev.id)}
+                onClick={() => handleOpenEvent(ev)}
                 className={`bg-white rounded-3xl overflow-hidden border transition-all flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer group ${
                   isCurrent
                     ? 'border-[#2D4A3A] ring-2 ring-[#2D4A3A]/20'
@@ -107,7 +128,7 @@ export default function HostEventsPage() {
                     <div className="absolute top-3 left-3">
                       <span className="px-3 py-1 rounded-full bg-black/65 backdrop-blur-md text-white text-xs font-mono font-bold flex items-center gap-1.5 border border-white/10">
                         <QrCode className="w-3.5 h-3.5 text-[#9BC4A8]" />
-                        <span>ID: {ev.id}</span>
+                        <span>PIN {formatPin(ev.code)}</span>
                       </span>
                     </div>
 
@@ -126,11 +147,6 @@ export default function HostEventsPage() {
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-[#9BC4A8]" />
                           {ev.date}
-                        </span>
-                        <span>·</span>
-                        <span className="flex items-center gap-1 truncate max-w-[150px]">
-                          <MapPin className="w-3 h-3 text-[#9BC4A8]" />
-                          {ev.venue}
                         </span>
                       </div>
                     </div>
@@ -180,7 +196,7 @@ export default function HostEventsPage() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleOpenEvent(ev.id);
+                      handleOpenEvent(ev);
                     }}
                     className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
                   >
@@ -191,11 +207,15 @@ export default function HostEventsPage() {
                   {events.length > 1 && (
                     <button
                       type="button"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Delete celebration "${ev.title}"?`)) {
-                          deleteEvent(ev.id);
-                        }
+                        const ok = await confirm({
+                          title: `Delete “${ev.title}”?`,
+                          message:
+                            'This permanently deletes the event with all its photos, videos, categories and votes. Guests’ QR codes will stop working. This can’t be undone.',
+                          confirmLabel: 'Delete event',
+                        });
+                        if (ok) deleteEvent(ev.id);
                       }}
                       className="p-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                       title="Delete event"
@@ -209,6 +229,7 @@ export default function HostEventsPage() {
           })}
         </div>
       </div>
+      {confirmDialog}
     </HostAuthGuard>
   );
 }

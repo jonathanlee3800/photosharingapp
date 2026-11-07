@@ -14,6 +14,7 @@ import {
 import { MemoryItem, PromptItem } from '@/lib/initialData';
 import { useEvent, FloatingEmoji } from '@/context/EventContext';
 import { generateQrDataUrl } from '@/lib/qrHelper';
+import { formatPin } from '@/lib/pin';
 
 interface ProjectorScreenProps {
   memories?: MemoryItem[];
@@ -41,7 +42,9 @@ export default function ProjectorScreen({
   fullscreenMode = true,
 }: ProjectorScreenProps) {
   const eventContext = useEvent();
-  const { currentEvent } = eventContext;
+  const { currentEvent, isHostLoggedIn } = eventContext;
+  // Only the host may skip, pause or resume the slideshow; anyone else just watches
+  const canControl = isHostLoggedIn;
 
   const memories = propMemories ?? eventContext.publicMemories;
   const activeMemory = propActiveMemory ?? eventContext.activeSlideMemory;
@@ -56,18 +59,22 @@ export default function ProjectorScreen({
     (() => eventContext.setIsSlideshowPlaying((p) => !p));
 
   const [qrDataUrl, setQrDataUrl] = useState('');
+  // Site address shown on screen for typing the PIN ("yoursite.com/join"); set on the client
+  const [joinHost, setJoinHost] = useState('');
 
   useEffect(() => {
     const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'https://withlove.app';
-    const targetUrl = `${origin}/user/${currentEvent.id}`;
+      typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+    setJoinHost(origin.replace(/^https?:\/\//, ''));
+    const targetUrl = `${origin}/user/${currentEvent.code}`;
     generateQrDataUrl(targetUrl, { width: 200, margin: 1 }).then((data) => {
       setQrDataUrl(data);
     });
-  }, [currentEvent.id]);
+  }, [currentEvent.id, currentEvent.code]);
 
-  // Keyboard navigation for presentation
+  // Keyboard navigation for presentation (host only)
   useEffect(() => {
+    if (!canControl) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
@@ -81,7 +88,7 @@ export default function ProjectorScreen({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNextSlide, handleTogglePlay, eventContext]);
+  }, [canControl, handleNextSlide, handleTogglePlay, eventContext]);
 
   if (!activeMemory) return null;
   const promptObj = getPrompt(activeMemory.promptId);
@@ -132,7 +139,7 @@ export default function ProjectorScreen({
           </span>
           <span className="text-white/20 text-3xl font-light mx-1 hidden sm:inline">|</span>
           <span className="text-xs font-sans tracking-[0.25em] uppercase text-white/60 font-bold hidden sm:inline">
-            {currentEvent.date} · {currentEvent.venue}
+            {currentEvent.date}
           </span>
         </div>
         <div className="flex items-center gap-2.5 text-[11px] font-sans font-bold tracking-[0.2em] uppercase text-[#F4F3F0]">
@@ -145,7 +152,7 @@ export default function ProjectorScreen({
       <div className="flex-1 w-full relative flex items-center justify-center z-10 px-6 sm:px-12 min-h-0">
         {/* Left Ghost Slide */}
         <div className="hidden lg:block absolute left-[-8%] w-[35%] h-[65%] opacity-25 blur-[2px] scale-90 rounded-[2.5rem] overflow-hidden border border-white/10 transition-all duration-700 ease-in-out">
-          {prevMemory.url.startsWith('data:video') ? (
+          {prevMemory.type === 'video' ? (
             <video src={prevMemory.url} muted playsInline className="w-full h-full object-cover" />
           ) : (
             <img
@@ -158,7 +165,7 @@ export default function ProjectorScreen({
 
         {/* Center Primary Slide */}
         <div className="relative w-full max-w-4xl h-[52vh] sm:h-[58vh] rounded-[2.5rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.85)] border-[6px] border-[#25362A] z-20 transition-all duration-700 ease-in-out bg-black/40">
-          {activeMemory.url.startsWith('data:video') ? (
+          {activeMemory.type === 'video' ? (
             <video
               src={activeMemory.url}
               autoPlay
@@ -186,7 +193,7 @@ export default function ProjectorScreen({
 
         {/* Right Ghost Slide */}
         <div className="hidden lg:block absolute right-[-8%] w-[35%] h-[65%] opacity-25 blur-[2px] scale-90 rounded-[2.5rem] overflow-hidden border border-white/10 transition-all duration-700 ease-in-out">
-          {nextMemory.url.startsWith('data:video') ? (
+          {nextMemory.type === 'video' ? (
             <video src={nextMemory.url} muted playsInline className="w-full h-full object-cover" />
           ) : (
             <img
@@ -208,7 +215,7 @@ export default function ProjectorScreen({
           </div>
 
           <h2 className="text-3xl sm:text-5xl lg:text-6xl text-[#FAF8F5] leading-[1.08] mb-3 font-normal drop-shadow-md">
-            “{activeMemory.caption}”
+            {activeMemory.caption && `“${activeMemory.caption}”`}
           </h2>
 
           <div className="text-sm sm:text-base font-sans text-white/70 font-medium">
@@ -247,11 +254,14 @@ export default function ProjectorScreen({
             <div className="h-10 w-px bg-white/20 hidden sm:block"></div>
 
             <div className="text-right">
-              <div className="text-base font-mono font-bold text-[#FAF8F5] leading-tight">
-                /user/{currentEvent.id}
-              </div>
               <div className="text-[10px] text-white/60 tracking-wider font-bold uppercase">
-                ID: {currentEvent.id} · No app needed
+                Go to {joinHost ? `${joinHost}/join` : '/join'} · PIN
+              </div>
+              <div className="text-3xl sm:text-4xl font-bold text-[#FAF8F5] leading-none tracking-wider tabular-nums mt-1">
+                {formatPin(currentEvent.code)}
+              </div>
+              <div className="text-[10px] text-white/50 tracking-wider font-semibold uppercase mt-1">
+                or scan the QR · No app needed
               </div>
             </div>
 
@@ -273,28 +283,32 @@ export default function ProjectorScreen({
       {/* Floating Host Controls Overlay */}
       <div className="absolute top-4 right-4 z-40 opacity-15 hover:opacity-100 transition-opacity">
         <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md p-2 rounded-full border border-white/15 shadow-xl">
-          <button
-            onClick={() => eventContext.cyclePrevSlide()}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title="Previous slide (Left Arrow)"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleTogglePlay}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title={isPlaying ? 'Pause slideshow (P)' : 'Play slideshow (P)'}
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={handleNextSlide}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title="Next slide (Right Arrow / Space)"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <div className="w-px h-4 bg-white/20 mx-1" />
+          {canControl && (
+            <>
+              <button
+                onClick={() => eventContext.cyclePrevSlide()}
+                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
+                title="Previous slide (Left Arrow)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleTogglePlay}
+                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
+                title={isPlaying ? 'Pause slideshow (P)' : 'Play slideshow (P)'}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={handleNextSlide}
+                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
+                title="Next slide (Right Arrow / Space)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="w-px h-4 bg-white/20 mx-1" />
+            </>
+          )}
           <button
             onClick={handleToggleFullscreen}
             className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"

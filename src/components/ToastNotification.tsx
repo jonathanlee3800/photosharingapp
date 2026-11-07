@@ -9,13 +9,23 @@ export default function ToastNotification() {
   if (!toast) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 z-50 bg-[#182B24]/95 backdrop-blur-xl text-[#FAF8F5] border border-[#4E6E58]/50 shadow-2xl rounded-2xl px-4 py-3 flex items-center gap-3 max-w-md animate-in fade-in slide-in-from-bottom-5">
-      <div className="w-2.5 h-2.5 rounded-full bg-[#74A886] animate-ping shrink-0 shadow-[0_0_8px_#74A886]" />
-      <div>
-        <div className="text-xs font-semibold text-white tracking-wide">{toast.title}</div>
-        <div className="text-[11px] text-white/70 mt-0.5">{toast.subtitle}</div>
+    <div
+      role="status"
+      aria-live="polite"
+      // Phones: float above the tab bar and home indicator; desktop: bottom-right
+      className="fixed left-3 right-3 md:left-auto md:right-6 md:!bottom-6 z-[60] flex justify-center md:block pointer-events-none"
+      style={{ bottom: 'calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px)' }}
+    >
+      <div
+        key={toast.id}
+        className="animate-fade-up pointer-events-auto w-full max-w-md bg-[#182B24]/95 backdrop-blur-xl text-[#FAF8F5] border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.25)] rounded-[20px] px-4 py-3.5 flex items-center gap-3"
+      >
+        <div className="w-2 h-2 rounded-full bg-[#74A886] shrink-0 shadow-[0_0_10px_#74A886]" />
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold text-white leading-snug">{toast.title}</div>
+          {toast.subtitle && <div className="text-[12.5px] text-white/70 mt-0.5 leading-snug">{toast.subtitle}</div>}
+        </div>
       </div>
     </div>
   );
 }
-

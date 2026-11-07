@@ -1,141 +1,178 @@
 'use client';
 
 import React from 'react';
-import { Heart, Trophy, Sparkles, Check, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { Heart, Trophy, Clock, Lock, Camera, Check } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import confetti from 'canvas-confetti';
 
+const formatCountdown = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+
 export default function VotePage() {
-  const {
-    publicMemories,
-    prompts,
-    votingRound,
-    setVotingRound,
-    getPrompt,
-    toggleVote,
-  } = useEvent();
+  const { currentEvent, publicMemories, votingRound, getPrompt, toggleVote } = useEvent();
 
   const activePrompt = getPrompt(votingRound.promptId);
 
-  const contenders = publicMemories
-    .filter((m) => m.promptId === votingRound.promptId)
-    .sort((a, b) => b.votes - a.votes);
+  // The round's candidates: public photos in the contest category, in a fixed order
+  // (not re-sorted by votes, so photos don't jump around while people vote)
+  const contenders = publicMemories.filter((m) => m.promptId === votingRound.promptId);
 
-  const displayList = contenders.length >= 2 ? contenders : publicMemories.slice(0, 6);
+  // Rank by votes for the badges (ties share a rank), without changing the display order
+  const rankOf = (votes: number) => 1 + contenders.filter((m) => m.votes > votes).length;
 
-  const handleVoteClick = (id: string) => {
+  const leader = contenders.reduce<(typeof contenders)[number] | null>(
+    (best, m) => (m.votes > 0 && (!best || m.votes > best.votes) ? m : best),
+    null
+  );
+
+  const handleVoteClick = (id: string, alreadyVoted?: boolean) => {
     toggleVote(id);
+    if (alreadyVoted) return;
     try {
       confetti({
-        particleCount: 30,
-        spread: 60,
-        origin: { y: 0.6 },
+        particleCount: 40,
+        spread: 70,
+        origin: { y: 0.7 },
         colors: ['#2D4A3A', '#74A886', '#E9EFEA', '#F59E0B'],
       });
     } catch (e) {}
   };
 
+  // No round running: nothing to vote on, just let guests know
+  if (!votingRound.isOpen) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center animate-fade-up">
+        <div className="w-20 h-20 rounded-full bg-[#E9EFEA] text-[#2D4A3A] flex items-center justify-center">
+          <Trophy className="w-9 h-9" strokeWidth={1.6} />
+        </div>
+        <h1 className="font-serif text-[34px] leading-tight font-medium text-[#1C2820] mt-6">No live round right now</h1>
+        <p className="text-[15px] leading-relaxed text-[#1C2820]/55 mt-2 max-w-xs">
+          The hosts will open a vote during the celebration. This page updates by itself when it starts.
+        </p>
+        <Link
+          href={`/user/${currentEvent.code}/gallery`}
+          className="mt-8 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center press"
+        >
+          Back to the gallery
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 pb-28 sm:pb-12">
+    <div className="w-full max-w-6xl mx-auto px-4 md:px-8 pt-6 md:pt-10 pb-8 md:pb-16 space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1C2820]/10 pb-6">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[#2D4A3A] bg-[#E9EFEA] px-3 py-1 rounded-full inline-flex items-center gap-1.5">
-            <Trophy className="w-3.5 h-3.5" /> Live Photo Contest
-          </span>
-          <h1 className="font-serif text-4xl sm:text-5xl font-medium text-[#1C2820] mt-2 leading-none">
-            {activePrompt.label}
-          </h1>
-          <p className="text-sm text-[#1C2820]/65 mt-2 font-medium">
-            Vote for your favorite candid memory in this round. Winners revealed before the evening toast!
-          </p>
-        </div>
+      <header className="space-y-3 animate-fade-up">
+        <p className="text-[12px] uppercase tracking-[0.16em] font-semibold text-[#2D4A3A]/80 flex items-center gap-1.5">
+          <Trophy className="w-3.5 h-3.5" /> Live photo contest
+        </p>
+        <h1 className="font-serif text-[38px] md:text-[56px] leading-[1.02] font-medium tracking-tight text-[#1C2820]">
+          {activePrompt.icon} {activePrompt.label}
+        </h1>
+        <p className="text-[15px] text-[#1C2820]/55">
+          {votingRound.isActive
+            ? 'You have one vote — tap your favourite. Tap another photo to move your vote.'
+            : 'Voting for this round has ended. The hosts will reveal the winner shortly.'}
+        </p>
+      </header>
 
-        {/* Category Switcher Dropdown */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-[#1C2820]/60 shrink-0">
-            Contest Round:
-          </label>
-          <select
-            value={votingRound.promptId}
-            onChange={(e) =>
-              setVotingRound((v) => ({ ...v, promptId: e.target.value }))
-            }
-            className="px-4 py-2.5 rounded-xl border border-[#1C2820]/20 bg-white text-xs font-bold text-[#1C2820] focus:outline-none focus:border-[#2D4A3A]"
-          >
-            {prompts.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.icon} {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Status pill */}
+      <div className="sticky z-30 top-[calc(3.5rem+env(safe-area-inset-top)+0.5rem)] md:top-20 flex justify-center pointer-events-none">
+        {votingRound.isActive ? (
+          <div className="pointer-events-auto glass border border-[#1C2820]/[0.08] shadow-[0_6px_24px_rgba(28,40,32,0.1)] rounded-full h-11 px-4 flex items-center gap-3 text-[14px]">
+            <span className="flex items-center gap-2 font-semibold text-[#2D4A3A]">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#2D4A3A]" />
+              </span>
+              Voting open
+            </span>
+            {votingRound.secondsLeft !== null && (
+              <span className="flex items-center gap-1 font-semibold text-[#1C2820] tabular-nums">
+                <Clock className="w-4 h-4 text-[#1C2820]/50" />
+                {formatCountdown(votingRound.secondsLeft)}
+              </span>
+            )}
+            <span className="text-[#1C2820]/50">{contenders.length} photos</span>
+          </div>
+        ) : (
+          <div className="pointer-events-auto glass border border-[#1C2820]/[0.08] rounded-full h-11 px-4 flex items-center gap-2 text-[14px] font-semibold text-[#1C2820]/70">
+            <Lock className="w-4 h-4" /> Time’s up
+            {leader && <span className="font-normal text-[#1C2820]/50 truncate max-w-[45vw]">· {leader.guestName} leads</span>}
+          </div>
+        )}
       </div>
 
-      {/* Live Contest Status Banner */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-[#E9EFEA] to-[#D8E5DA] border border-[#2D4A3A]/20 flex items-center justify-between text-xs shadow-inner">
-        <span className="font-bold text-[#2D4A3A] flex items-center gap-2 text-sm">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-[#2D4A3A]"></span>
-          </span>
-          Live Voting Round Open
-        </span>
-        <span className="text-[#1C2820]/75 font-semibold">
-          {displayList.length} contenders competing
-        </span>
-      </div>
-
-      {/* Responsive Voting Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {displayList.map((item, idx) => (
-          <div
-            key={item.id}
-            className="bg-white rounded-3xl overflow-hidden border border-[#1C2820]/10 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between p-3.5 group"
+      {/* Candidates */}
+      {contenders.length === 0 ? (
+        <div className="py-14 text-center flex flex-col items-center gap-3">
+          <p className="font-serif text-[26px] text-[#1C2820]">No photos in this category yet</p>
+          <Link
+            href={`/user/${currentEvent.code}/upload`}
+            className="h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"
           >
-            <div>
-              <div className="relative aspect-square rounded-2xl overflow-hidden mb-3.5 shadow-sm bg-black/5">
-                <img
-                  src={item.url}
-                  alt={item.caption}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-xl bg-black/75 backdrop-blur-md text-white text-xs font-extrabold border border-white/10 shadow-md">
-                  #{idx + 1}
-                </span>
-                <span className="absolute bottom-2.5 right-2.5 px-3 py-1 rounded-xl bg-white/90 backdrop-blur-md text-[#2D4A3A] text-xs font-bold shadow-md">
-                  {item.votes} votes
+            <Camera className="w-5 h-5" /> Share one
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          {contenders.map((item) => (
+            <article
+              key={item.id}
+              className="rounded-[28px] overflow-hidden bg-white border border-[#1C2820]/[0.06] shadow-[0_10px_40px_rgba(28,40,32,0.06)]"
+            >
+              <div className="relative aspect-[4/5] sm:aspect-square bg-black/5">
+                {item.type === 'video' ? (
+                  <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <img src={item.url} alt={item.caption} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                )}
+                {(() => {
+                  const rank = rankOf(item.votes);
+                  return (
+                    <span
+                      className={`absolute top-3.5 left-3.5 h-8 min-w-8 px-2.5 rounded-full text-[13px] font-bold flex items-center justify-center ${
+                        rank === 1 && item.votes > 0 ? 'bg-[#F5C451] text-[#1C2820]' : 'bg-black/45 backdrop-blur-md text-white'
+                      }`}
+                    >
+                      #{rank}
+                    </span>
+                  );
+                })()}
+                <span className="absolute top-3.5 right-3.5 h-8 px-3 rounded-full bg-white/90 backdrop-blur-md text-[#1C2820] text-[13px] font-semibold flex items-center gap-1 tabular-nums">
+                  <Heart className="w-3.5 h-3.5 text-[#2D4A3A]" fill="currentColor" /> {item.votes}
                 </span>
               </div>
 
-              <h3 className="font-bold text-sm text-[#1C2820] leading-snug line-clamp-2 px-1 mb-1">
-                “{item.caption}”
-              </h3>
-              <p className="text-xs text-[#1C2820]/60 px-1 mb-3 font-medium">
-                by {item.guestName} · {item.timestamp}
-              </p>
-            </div>
+              <div className="p-4 space-y-3">
+                <div>
+                  <p className="text-[16px] font-medium text-[#1C2820] leading-snug line-clamp-2">{item.caption && `“${item.caption}”`}</p>
+                  <p className="text-[13px] text-[#1C2820]/50 mt-1">{item.guestName}</p>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => handleVoteClick(item.id)}
-              className={`w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm ${
-                item.votedByMe
-                  ? 'bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white shadow-md'
-                  : 'bg-[#FAF8F5] border border-[#1C2820]/15 text-[#1C2820] hover:bg-[#E9EFEA]'
-              }`}
-            >
-              <Heart
-                className={`w-4 h-4 ${
-                  item.votedByMe ? 'fill-white text-white' : 'text-[#2D4A3A]'
-                }`}
-              />
-              <span>{item.votedByMe ? 'Voted!' : 'Cast Vote'}</span>
-            </button>
-          </div>
-        ))}
-      </div>
+                {votingRound.isActive ? (
+                  <button
+                    type="button"
+                    onClick={() => handleVoteClick(item.id, item.votedByMe)}
+                    aria-pressed={item.votedByMe}
+                    className={`w-full h-12 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-colors press ${
+                      item.votedByMe ? 'bg-[#2D4A3A] text-white' : 'bg-[#E9EFEA] text-[#2D4A3A]'
+                    }`}
+                  >
+                    {item.votedByMe ? <Check className="w-5 h-5" /> : <Heart className="w-5 h-5" />}
+                    {item.votedByMe ? 'Voted' : 'Vote'}
+                  </button>
+                ) : (
+                  <div className="w-full h-12 rounded-2xl bg-[#1C2820]/[0.04] text-[#1C2820]/45 text-[15px] font-medium flex items-center justify-center gap-2">
+                    <Lock className="w-4 h-4" /> {item.votedByMe ? 'You voted' : 'Voting closed'}
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

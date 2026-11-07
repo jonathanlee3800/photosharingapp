@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Calendar,
-  MapPin,
   QrCode,
   Plus,
   Trash2,
@@ -15,11 +14,16 @@ import {
   Check,
   Tag,
   Download,
+  Upload,
+  Camera,
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { PromptItem } from '@/lib/initialData';
-import { generateQrDataUrl, downloadQrCode } from '@/lib/qrHelper';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import DatePicker from '@/components/DatePicker';
+import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
 
 const COVER_PRESETS = [
   {
@@ -44,56 +48,78 @@ const EMOJI_OPTIONS = ['🌿', '🥂', '✨', '🕰️', '💃', '📸', '🎉',
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const { events, createEvent } = useEvent();
+  const { createEvent, triggerToast } = useEvent();
 
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState('24 May 2026');
-  const [venue, setVenue] = useState('The Glasshouse');
-  const [uniqueEventId, setUniqueEventId] = useState(() => {
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let slug = 'evt-';
-    for (let i = 0; i < 6; i++) {
-      slug += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return slug;
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
   });
-  const [codeError, setCodeError] = useState('');
+  // The 6-digit event PIN is assigned by the database when the event is created
+  const [submitError, setSubmitError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Cover photo selection & custom upload state
   const [selectedCover, setSelectedCover] = useState(0);
+  const [customCoverUrl, setCustomCoverUrl] = useState<string | null>(null);
+  const [isCustomCoverSelected, setIsCustomCoverSelected] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverFileName, setCoverFileName] = useState<string | null>(null);
 
   // Mini-Categories State for this new event
+  // Start with a single category; hosts add more if they want
   const [categories, setCategories] = useState<PromptItem[]>([
     { id: 'cat-1', label: 'A moment to remember', icon: '🌿' },
-    { id: 'cat-2', label: 'Oldest memory together', icon: '🕰️' },
-    { id: 'cat-3', label: 'Most candid & funny shot', icon: '🥂' },
-    { id: 'cat-4', label: 'Dance floor magic', icon: '✨' },
   ]);
 
   const [newCatLabel, setNewCatLabel] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('📸');
 
-  // Generated QR preview
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const handleCoverFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const regenerateEventId = () => {
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let slug = 'evt-';
-    for (let i = 0; i < 6; i++) {
-      slug += chars.charAt(Math.floor(Math.random() * chars.length));
+    // Reset input value so selecting the same file triggers onChange
+    e.target.value = '';
+
+    if (!isValidImageFile(file)) {
+      triggerToast('Please select a valid image file (JPG, PNG, HEIC, WebP)');
+      return;
     }
-    setUniqueEventId(slug);
-    setCodeError('');
+
+    setIsUploadingCover(true);
+    setCoverFileName(file.name);
+
+    const isHeic = isHeicFile(file);
+
+    // If standard image, show instant 0ms preview; if HEIC, wait for conversion so browser doesn't break
+    if (!isHeic) {
+      const instantUrl = URL.createObjectURL(file);
+      setCustomCoverUrl(instantUrl);
+      setIsCustomCoverSelected(true);
+      triggerToast('Cover photo selected!', file.name);
+    } else {
+      triggerToast('Converting iPhone photo...', file.name);
+    }
+
+    try {
+      // Process, decode HEIC via server libheif, and compress
+      const processed = await processUploadedImage(file, { maxDimension: 1400, quality: 0.85 });
+      setCustomCoverUrl(processed.dataUrl);
+      setCoverFileName(processed.fileName);
+      setIsCustomCoverSelected(true);
+      triggerToast('Cover photo ready!', processed.fileName);
+    } catch (err) {
+      console.warn('Cover upload processing notice:', err);
+      triggerToast('Could not process photo', 'Please select another photo');
+    } finally {
+      setIsUploadingCover(false);
+    }
   };
-
-  // Generate QR code whenever uniqueEventId changes
-  useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://withlove.app';
-    const cleanId = uniqueEventId.trim().toLowerCase() || 'evt-new';
-    const targetUrl = `${origin}/user/${cleanId}`;
-
-    generateQrDataUrl(targetUrl, { width: 320, margin: 2 }).then((data) => {
-      setQrDataUrl(data);
-    });
-  }, [uniqueEventId]);
 
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,44 +140,37 @@ export default function CreateEventPage() {
     setCategories((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isCreating) return;
 
-    const cleanId = uniqueEventId
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '');
+    const finalCover = isCustomCoverSelected && customCoverUrl
+      ? customCoverUrl
+      : COVER_PRESETS[selectedCover]?.url || COVER_PRESETS[0].url;
 
-    if (!cleanId) {
-      setCodeError('Please provide a valid unique Event ID.');
-      return;
+    setSubmitError('');
+    setIsCreating(true);
+    try {
+      const newEvent = await createEvent({
+        title: title.trim(),
+        date: date.trim(),
+        coverUrl: finalCover,
+        initialPrompts: categories,
+      });
+      router.push(`/host/${newEvent.code}`);
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Could not create the event. Please try again.');
+      setIsCreating(false);
     }
-
-    const isDuplicate = events.some(
-      (ev) => ev.id.toLowerCase() === cleanId || ev.code.toLowerCase() === cleanId
-    );
-    if (isDuplicate) {
-      setCodeError(`Event ID "${cleanId}" is already in use. Click Generate New ID.`);
-      return;
-    }
-
-    const newEvent = createEvent({
-      id: cleanId,
-      title: title.trim(),
-      date: date.trim() || '24 May 2026',
-      venue: venue.trim() || 'The Glasshouse',
-      code: cleanId.toUpperCase(),
-      coverUrl: COVER_PRESETS[selectedCover].url,
-      initialPrompts: categories,
-    });
-
-    router.push(`/host/${newEvent.id}`);
   };
+
+  const activeCoverUrl = isCustomCoverSelected && customCoverUrl
+    ? customCoverUrl
+    : COVER_PRESETS[selectedCover]?.url || COVER_PRESETS[0].url;
 
   return (
     <HostAuthGuard>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
         <Link
           href="/host/events"
           className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1C2820]/60 hover:text-[#1C2820] transition-colors"
@@ -184,112 +203,158 @@ export default function CreateEventPage() {
 
               <div>
                 <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5">
-                  Event Title / Couple Names *
+                  Event Title *
                 </label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Joshua & Simone, Sarah & David Wedding"
+                  placeholder="Event title"
                   className="w-full px-4 py-3 rounded-xl border border-[#1C2820]/20 text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                    <span>Event Date</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    placeholder="e.g. 24 May 2026"
-                    className="w-full px-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs font-semibold focus:outline-none focus:border-[#2D4A3A]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                    <span>Venue / Location</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={venue}
-                    onChange={(e) => setVenue(e.target.value)}
-                    placeholder="e.g. The Glasshouse"
-                    className="w-full px-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs font-semibold focus:outline-none focus:border-[#2D4A3A]"
-                  />
-                </div>
+              <div className="sm:max-w-[50%]">
+                <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#2D4A3A]" />
+                  <span>Event Date</span>
+                </label>
+                <DatePicker value={date} onChange={setDate} />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-[#1C2820] uppercase tracking-wide">
-                    Unique Event ID & QR Code Identifier
-                  </label>
-                  <button
-                    type="button"
-                    onClick={regenerateEventId}
-                    className="text-[11px] font-bold text-[#2D4A3A] hover:underline"
-                  >
-                    Regenerate Unique ID
-                  </button>
+              <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#1C2820]/10 flex items-start gap-3">
+                <QrCode className="w-5 h-5 text-[#2D4A3A] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-bold text-[#1C2820] uppercase tracking-wide">Event PIN</div>
+                  <p className="text-[11px] text-[#1C2820]/60 font-medium mt-0.5 leading-relaxed">
+                    A unique 6-digit PIN (e.g. <span className="font-bold tabular-nums text-[#2D4A3A]">482 913</span>) is
+                    created automatically when you launch the event. Guests type it at /join or scan the QR code, and it
+                    can’t be changed.
+                  </p>
                 </div>
-                <input
-                  type="text"
-                  value={uniqueEventId}
-                  onChange={(e) => {
-                    setUniqueEventId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
-                    if (codeError) setCodeError('');
-                  }}
-                  placeholder="e.g. evt-8k3f9a"
-                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-mono font-bold tracking-wider focus:outline-none ${
-                    codeError
-                      ? 'border-red-500 focus:border-red-500'
-                      : 'border-[#1C2820]/20 focus:border-[#2D4A3A]'
-                  }`}
-                />
-                {codeError ? (
-                  <span className="block text-[11px] text-red-600 mt-1 font-semibold">
-                    {codeError}
-                  </span>
-                ) : (
-                  <span className="block text-[10px] text-[#1C2820]/50 mt-1 font-medium">
-                    Guest URL: <span className="font-mono font-bold text-[#2D4A3A]">/user/{uniqueEventId || 'evt-id'}</span> · Host URL: <span className="font-mono font-bold text-[#2D4A3A]">/host/{uniqueEventId || 'evt-id'}</span>
-                  </span>
-                )}
               </div>
             </div>
 
-            {/* 2. Cover Photo Picker Card */}
+            {/* 2. Theme Cover Image Card */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm space-y-4">
-              <h2 className="font-serif text-2xl font-bold text-[#1C2820]">
-                2. Theme Cover Image
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {COVER_PRESETS.map((preset, idx) => (
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-[#1C2820]">
+                  2. Theme Cover Image
+                </h2>
+                <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
+                  Choose from our curated presets below or upload your own custom cover.
+                </p>
+              </div>
+
+              {/* Hidden Native File Input */}
+              <input
+                id="custom-cover-file-input"
+                type="file"
+                accept="image/*,.heic,.heif"
+                onChange={handleCoverFileUpload}
+                className="hidden"
+              />
+
+              {/* High-visibility Live Preview Banner for Custom Upload */}
+              {isCustomCoverSelected && customCoverUrl && (
+                <div className="relative rounded-2xl overflow-hidden border-2 border-[#2D4A3A] shadow-md h-52 bg-black/10 transition-all animate-in fade-in duration-200">
+                  <img
+                    src={customCoverUrl}
+                    alt="Custom cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex items-end justify-between p-4 text-white">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-[#9BC4A8] flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Active Custom Cover Selected</span>
+                      </div>
+                      <div className="text-sm font-bold truncate max-w-xs sm:max-w-md mt-0.5">
+                        {coverFileName || 'Your custom uploaded photo'}
+                      </div>
+                    </div>
+                    <label
+                      htmlFor="custom-cover-file-input"
+                      className="cursor-pointer px-3 py-1.5 rounded-xl bg-white/20 backdrop-blur-md hover:bg-white/30 text-white text-xs font-bold transition-colors shrink-0"
+                    >
+                      Change Photo
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Presets and Custom Tile Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+                {/* Custom Photo Tile: Upload trigger when empty; thumbnail selector when filled (upload disabled) */}
+                {!customCoverUrl ? (
+                  <label
+                    htmlFor="custom-cover-file-input"
+                    className="relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-dashed border-[#1C2820]/25 hover:border-[#2D4A3A] bg-[#FAF8F5] cursor-pointer transition-all flex flex-col items-center justify-center text-center p-2 group shadow-sm"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1.5 text-[#2D4A3A]">
+                      {isUploadingCover ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                      )}
+                      <span className="text-[10px] font-bold leading-tight">
+                        {isUploadingCover ? 'Loading...' : 'Upload Photo'}
+                      </span>
+                    </div>
+                  </label>
+                ) : (
                   <button
-                    key={idx}
                     type="button"
-                    onClick={() => setSelectedCover(idx)}
-                    className={`relative aspect-[4/3] rounded-2xl overflow-hidden border-2 transition-all ${
-                      selectedCover === idx
+                    onClick={() => setIsCustomCoverSelected(true)}
+                    className={`relative aspect-[4/3] rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                      isCustomCoverSelected
                         ? 'border-[#2D4A3A] scale-105 shadow-md ring-2 ring-[#2D4A3A]/30'
                         : 'border-transparent opacity-75 hover:opacity-100'
                     }`}
                   >
-                    <img src={preset.url} alt="" className="w-full h-full object-cover" />
-                    {selectedCover === idx && (
-                      <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#2D4A3A] text-white flex items-center justify-center">
+                    <img src={customCoverUrl} alt="Custom cover" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/20" />
+                    <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] font-bold text-white bg-black/60 rounded px-1 py-0.5 truncate text-center">
+                      Custom Photo
+                    </span>
+                    {isCustomCoverSelected && (
+                      <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#2D4A3A] text-white flex items-center justify-center shadow">
                         <Check className="w-3 h-3 stroke-[3]" />
                       </span>
                     )}
                   </button>
-                ))}
+                )}
+
+                {/* 4 Presets */}
+                {COVER_PRESETS.map((preset, idx) => {
+                  const isSelected = !isCustomCoverSelected && selectedCover === idx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCoverSelected(false);
+                        setSelectedCover(idx);
+                      }}
+                      className={`relative aspect-[4/3] rounded-2xl overflow-hidden border-2 transition-all ${
+                        isSelected
+                          ? 'border-[#2D4A3A] scale-105 shadow-md ring-2 ring-[#2D4A3A]/30'
+                          : 'border-transparent opacity-75 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={preset.url} alt="" className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1.5 left-1.5 right-1.5 text-[9px] font-bold text-white bg-black/60 rounded px-1 py-0.5 truncate text-center">
+                        {preset.label}
+                      </span>
+                      {isSelected && (
+                        <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#2D4A3A] text-white flex items-center justify-center shadow">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -304,14 +369,14 @@ export default function CreateEventPage() {
                     Guests can select these categories when uploading candid photos or video toasts.
                   </p>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold">
-                  {categories.length} Prompts
+                <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold whitespace-nowrap shrink-0">
+                  {categories.length} {categories.length === 1 ? 'Prompt' : 'Prompts'}
                 </span>
               </div>
 
               {/* Existing Categories List */}
               <div className="space-y-2">
-                {categories.map((cat, idx) => (
+                {categories.map((cat) => (
                   <div
                     key={cat.id}
                     className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#1C2820]/10 flex items-center justify-between"
@@ -342,7 +407,6 @@ export default function CreateEventPage() {
                 </span>
 
                 <div className="flex items-center gap-2">
-                  {/* Emoji select */}
                   <select
                     value={newCatIcon}
                     onChange={(e) => setNewCatIcon(e.target.value)}
@@ -376,7 +440,7 @@ export default function CreateEventPage() {
             </div>
           </div>
 
-          {/* Right Column: Live QR Code Preview & Submit (5 cols) */}
+          {/* Right Column: Live Event Card Preview & Submit (5 cols) */}
           <div className="lg:col-span-5 space-y-6 sticky top-24">
             <div className="bg-[#FAF8F5] rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-lg space-y-6 text-center">
               <div>
@@ -384,32 +448,41 @@ export default function CreateEventPage() {
                   Instant QR Generation
                 </span>
                 <h3 className="font-serif text-2xl font-bold text-[#1C2820] mt-1">
-                  Live Event QR Code
+                  Live Event Card
                 </h3>
                 <p className="text-xs text-[#1C2820]/65 mt-1 font-medium">
-                  Automatically configured to direct guests to your wedding event.
+                  Preview of your celebration header & QR code.
                 </p>
               </div>
 
-              {/* QR Code Graphic */}
-              <div className="bg-white p-6 rounded-3xl border border-[#1C2820]/10 shadow-md inline-block mx-auto">
-                {qrDataUrl ? (
+              {/* Live Preview Card */}
+              <div className="bg-white p-5 rounded-3xl border border-[#1C2820]/10 shadow-md inline-block mx-auto w-full text-left">
+                {/* Live Cover Photo Preview */}
+                <div className="relative h-32 rounded-2xl overflow-hidden mb-4 bg-black/10">
                   <img
-                    src={qrDataUrl}
-                    alt="Event QR code"
-                    className="w-48 h-48 sm:w-56 sm:h-56 mx-auto object-contain"
+                    src={activeCoverUrl}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover transition-all"
                   />
-                ) : (
-                  <div className="w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center text-[#1C2820]/40">
-                    <QrCode className="w-16 h-16 animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3 text-white">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#9BC4A8]">
+                      {isCustomCoverSelected ? '✓ Custom Cover Photo' : COVER_PRESETS[selectedCover]?.label}
+                    </span>
                   </div>
-                )}
+                </div>
+
+                {/* QR placeholder: the real QR needs the join code, which is assigned on launch */}
+                <div className="w-40 h-40 mx-auto rounded-2xl border-2 border-dashed border-[#1C2820]/15 flex flex-col items-center justify-center gap-2 text-[#1C2820]/40">
+                  <QrCode className="w-12 h-12" />
+                  <span className="text-[10px] font-semibold text-center px-3">Ready after launch</span>
+                </div>
+
                 <div className="mt-3 text-center">
-                  <div className="font-serif text-base font-bold text-[#1C2820]">
+                  <div className="font-serif text-base font-bold text-[#1C2820] truncate">
                     {title || 'Joshua & Simone'}
                   </div>
                   <div className="text-[10px] font-mono font-bold tracking-wider text-[#2D4A3A] mt-0.5">
-                    /user/{uniqueEventId}
+                    PIN: • • •  • • •
                   </div>
                 </div>
               </div>
@@ -417,12 +490,15 @@ export default function CreateEventPage() {
               <div className="space-y-2">
                 <button
                   type="submit"
-                  disabled={!title.trim()}
+                  disabled={!title.trim() || isCreating}
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Launch Event & Save QR</span>
+                  <span>{isCreating ? 'Creating your event…' : 'Launch Event & Save QR'}</span>
                 </button>
+                {submitError && (
+                  <p className="text-[11px] text-red-600 font-semibold text-center">{submitError}</p>
+                )}
               </div>
             </div>
           </div>
@@ -431,4 +507,3 @@ export default function CreateEventPage() {
     </HostAuthGuard>
   );
 }
-

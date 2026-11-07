@@ -3,63 +3,73 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Image as ImageIcon,
-  Play,
-  Heart,
-  Plus,
-  Shield,
-  Tv,
-  Download,
-  Menu,
-  X,
-  LogOut,
-} from 'lucide-react';
+import { Image as ImageIcon, Play, Heart, Plus, Download, LogOut } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const {
-    currentEvent,
-    memories,
-    setIsZipModalOpen,
-    isHostLoggedIn,
-    logoutHost,
-  } = useEvent();
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const { currentEvent, memories, setIsZipModalOpen, isHostLoggedIn, logoutHost, hasJoined, guestName } =
+    useEvent();
+  // Anyone not signed in as a host only sees guest navigation; the host login link lives in the footer
+  const isGuest = !isHostLoggedIn;
 
   // If on full projector screen, we don't show the standard site navbar
-  if (
-    pathname === '/projector' ||
-    pathname === '/display' ||
-    pathname?.endsWith('/projector')
-  ) {
+  // Full-screen pages with their own chrome: projector and the Kahoot-style PIN screen
+  if (pathname === '/projector' || pathname === '/display' || pathname === '/join' || pathname?.endsWith('/projector')) {
     return null;
   }
 
-  const navLinks = [
-    { label: 'Gallery', href: `/user/${currentEvent.id}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
-    { label: 'Live Slideshow', href: `/user/${currentEvent.id}/slideshow`, matchSuffix: '/slideshow', icon: Play },
-    { label: 'Live Voting', href: `/user/${currentEvent.id}/vote`, matchSuffix: '/vote', icon: Heart },
-  ];
+  const base = `/user/${currentEvent.code}`;
 
-  const isHostPage = pathname?.startsWith('/host');
+  // The guest join/home screen has a full-bleed cover photo, so it runs edge to edge with no bar
+  if (isGuest && decodeURIComponent(pathname || '').toLowerCase() === base.toLowerCase()) {
+    return null;
+  }
+
+  // Guest links only (desktop); on phones the bottom tab bar handles navigation
+  const navLinks = isGuest
+    ? [
+        { label: 'Gallery', href: `${base}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
+        { label: 'Live Slideshow', href: `${base}/slideshow`, matchSuffix: '/slideshow', icon: Play },
+        { label: 'Live Voting', href: `${base}/vote`, matchSuffix: '/vote', icon: Heart },
+      ]
+    : [];
+
+  const initials =
+    (guestName || '')
+      .split(' ')
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '?';
 
   return (
-    <nav className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-[#1C2820]/10 transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+    <nav className="sticky top-0 z-40 glass border-b border-[#1C2820]/[0.08] pt-safe">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-14 md:h-16">
           {/* Left: Brand & Active Event Title */}
-          <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <span className="w-8 h-8 rounded-lg bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shadow-sm group-hover:scale-105 transition-transform">
-                w
+          <div className="flex items-center gap-6 min-w-0">
+            <Link
+              href={!isGuest ? '/host/events' : hasJoined ? `${base}/gallery` : base}
+              className="flex items-center gap-2.5 min-w-0 press"
+            >
+              <span className="w-8 h-8 rounded-[10px] bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shrink-0">
+                m
               </span>
-              <div className="flex flex-col">
-                <span className="font-serif text-2xl tracking-tight text-[#1C2820] leading-none">
-                  withlove
+              <div className="flex flex-col min-w-0">
+                {/* Phones: the event is what guests care about, so it leads */}
+                <span className="md:hidden font-serif text-[19px] font-semibold tracking-tight text-[#1C2820] leading-tight truncate">
+                  {isGuest ? currentEvent.title : 'memorie aisle'}
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-[125px] sm:max-w-xs">
+                <span className="md:hidden text-[10px] uppercase tracking-[0.14em] text-[#2D4A3A]/80 font-bold leading-tight">
+                  {isGuest ? 'memorie aisle' : 'Host portal'}
+                </span>
+                {/* Desktop */}
+                <span className="hidden md:block font-serif text-2xl tracking-tight text-[#1C2820] leading-none">
+                  memorie aisle
+                </span>
+                <span className="hidden md:block text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-xs">
                   {currentEvent.title}
                 </span>
               </div>
@@ -69,17 +79,13 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => {
                 const Icon = link.icon;
-                const active =
-                  pathname === link.href ||
-                  pathname?.endsWith(link.matchSuffix);
+                const active = pathname === link.href || pathname?.endsWith(link.matchSuffix);
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
                     className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-                      active
-                        ? 'bg-[#2D4A3A] text-white shadow-sm'
-                        : 'text-[#1C2820]/75 hover:text-[#1C2820] hover:bg-black/5'
+                      active ? 'bg-[#2D4A3A] text-white shadow-sm' : 'text-[#1C2820]/75 hover:text-[#1C2820] hover:bg-black/5'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -91,43 +97,32 @@ export default function Navbar() {
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2.5">
-            {/* Upload Button */}
-            <Link
-              href={`/user/${currentEvent.id}/upload`}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Share Moment</span>
-            </Link>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Upload Button (guests, desktop/tablet; phones use the tab bar camera) */}
+            {isGuest && (
+              <Link
+                href={`${base}/upload`}
+                className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Share Moment</span>
+              </Link>
+            )}
 
-            {/* Projector Screen Shortcut */}
-            <Link
-              href={`/user/${currentEvent.id}/projector`}
-              target="_blank"
-              className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-[#1C2820]/15 text-[#1C2820] hover:bg-black/5 transition-all"
-              title="Open full-screen 16:9 venue screen"
-            >
-              <Tv className="w-3.5 h-3.5 text-[#2D4A3A]" />
-              <span>Projector</span>
-            </Link>
+            {/* Guest avatar (phones): opens Home, where they can change name or leave */}
+            {isGuest && hasJoined && (
+              <Link
+                href={base}
+                aria-label={`Signed in as ${guestName}. Change name`}
+                className="md:hidden w-9 h-9 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-[13px] font-bold flex items-center justify-center border border-[#2D4A3A]/15 press"
+              >
+                {initials}
+              </Link>
+            )}
 
-            {/* Host Navigation / Auth Status */}
-            {isHostLoggedIn ? (
+            {/* Host actions (the logo links back to the events list) */}
+            {isHostLoggedIn && (
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <Link
-                  href="/host/events"
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    isHostPage
-                      ? 'bg-[#2D4A3A] text-white border-[#2D4A3A]'
-                      : 'border-[#1C2820]/15 text-[#1C2820] hover:bg-black/5'
-                  }`}
-                  title="Host Events"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Host Events</span>
-                </Link>
-
                 <Link
                   href="/host/events/new"
                   className="hidden xl:flex items-center gap-1 px-2.5 py-2 rounded-xl border border-[#1C2820]/15 text-xs font-semibold text-[#2D4A3A] bg-[#E9EFEA] hover:bg-[#D8E5DA]"
@@ -139,21 +134,13 @@ export default function Navbar() {
 
                 <button
                   onClick={logoutHost}
-                  className="p-1.5 sm:p-2 rounded-xl text-[#1C2820]/60 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  className="p-2 rounded-xl text-[#1C2820]/60 hover:text-red-600 hover:bg-red-50 transition-colors"
                   title="Host Sign Out"
+                  aria-label="Sign out"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-[18px] h-[18px]" />
                 </button>
               </div>
-            ) : (
-              <Link
-                href="/host/login"
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold border border-[#1C2820]/15 text-[#1C2820] hover:bg-black/5 transition-all"
-                title="Host Login"
-              >
-                <Shield className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                <span className="hidden sm:inline">Host Login</span>
-              </Link>
             )}
 
             {/* Export ZIP Trigger (Host Only) */}
@@ -167,69 +154,9 @@ export default function Navbar() {
                 <span>ZIP ({memories.length})</span>
               </button>
             )}
-
-            {/* Mobile Menu Toggle Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl text-[#1C2820] hover:bg-black/5"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile Dropdown Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-[#1C2820]/10 bg-[#FAF8F5] px-4 pt-3 pb-4 space-y-1 shadow-lg">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const active = pathname === link.href || pathname?.endsWith(link.matchSuffix);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold ${
-                  active
-                    ? 'bg-[#2D4A3A] text-white'
-                    : 'text-[#1C2820]/80 hover:bg-black/5'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{link.label}</span>
-              </Link>
-            );
-          })}
-          <div className="pt-2 border-t border-[#1C2820]/10 flex flex-col gap-2">
-            <Link
-              href={`/user/${currentEvent.id}/upload`}
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Share a Moment or Photo</span>
-            </Link>
-            <div className="flex gap-2">
-              <Link
-                href={isHostLoggedIn ? "/host/events" : "/host/login"}
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 py-2 text-center text-xs font-semibold rounded-xl border border-[#1C2820]/15"
-              >
-                {isHostLoggedIn ? "Host Events" : "Host Login"}
-              </Link>
-              <Link
-                href={`/user/${currentEvent.id}/projector`}
-                target="_blank"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 py-2 text-center text-xs font-semibold rounded-xl border border-[#1C2820]/15"
-              >
-                Projector Screen
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import {
   Download,
   Trash2,
@@ -10,38 +9,44 @@ import {
   X,
   Check,
   Lock,
-  Sparkles,
+  Pin,
   Film,
   Eye,
   EyeOff,
-  ExternalLink,
   AlertCircle,
   Filter,
-  ArrowLeft,
+  Play,
+  Upload,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import HostEventHeader from '@/components/HostEventHeader';
+import { useConfirm } from '@/components/ConfirmDialog';
+import HostUploadDialog from '@/components/HostUploadDialog';
 
 export default function HostPhotosPage() {
   const {
-    currentEvent,
     memories,
     prompts,
     getPrompt,
     spotlightId,
     toggleSpotlight,
+    resumeSlideshow,
     togglePrivacy,
     deleteMemory,
     deleteMultipleMemories,
     downloadSingle,
     exportSelectedZip,
-    setIsZipModalOpen,
   } = useEvent();
 
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [filterTab, setFilterTab] = useState<'all' | 'live' | 'private' | 'review'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Host upload window (choose files, category, caption)
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
@@ -77,13 +82,14 @@ export default function HostPhotosPage() {
     }
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) return;
-    if (
-      window.confirm(
-        `Are you sure you want to permanently delete ${selectedIds.length} photo(s)?`
-      )
-    ) {
+    const ok = await confirm({
+      title: `Delete ${selectedIds.length} ${selectedIds.length === 1 ? 'photo' : 'photos'}?`,
+      message: 'They will be removed from the gallery, slideshow and projector for everyone. This can’t be undone.',
+      confirmLabel: `Delete ${selectedIds.length}`,
+    });
+    if (ok) {
       deleteMultipleMemories(selectedIds);
       setSelectedIds([]);
     }
@@ -96,80 +102,64 @@ export default function HostPhotosPage() {
 
   return (
     <HostAuthGuard>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
-        {/* Sub-navigation bar for Host */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1C2820]/10 pb-5">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/host/${currentEvent.id}`}
-              className="px-4 py-2 rounded-xl text-[#1C2820]/70 hover:text-[#1C2820] hover:bg-black/5 text-xs font-semibold transition-colors"
-            >
-              Overview
-            </Link>
-            <Link
-              href={`/host/${currentEvent.id}/photos`}
-              className="px-4 py-2 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold shadow-sm"
-            >
-              Photos & Videos ({memories.length})
-            </Link>
-            <Link
-              href="/host/events"
-              className="px-4 py-2 rounded-xl text-[#1C2820]/70 hover:text-[#1C2820] hover:bg-black/5 text-xs font-semibold transition-colors"
-            >
-              All Events
-            </Link>
-          </div>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+        <HostEventHeader active="photos" />
 
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/user/${currentEvent.id}/projector`}
-            target="_blank"
-            className="px-4 py-2 rounded-xl border border-[#1C2820]/20 text-xs font-bold text-[#1C2820] hover:bg-[#E9EFEA] flex items-center gap-2 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-[#2D4A3A]" />
-            <span>Open Event Screen</span>
-          </Link>
-          <button
-            onClick={() => setIsZipModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download All ZIP ({memories.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2">
-        <Link
-          href="/host/events"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1C2820]/60 hover:text-[#2D4A3A] transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>All Events</span>
-        </Link>
-        <span className="text-xs text-[#1C2820]/30">/</span>
-        <Link
-          href={`/host/${currentEvent.id}`}
-          className="text-xs font-semibold text-[#1C2820]/60 hover:text-[#2D4A3A] transition-colors"
-        >
-          Overview ({currentEvent.title})
-        </Link>
-        <span className="text-xs text-[#1C2820]/30">/</span>
-        <span className="text-xs font-bold text-[#2D4A3A]">Photos & Vault</span>
-      </div>
-
-      {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      {/* Page Title + host upload */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-4xl sm:text-5xl font-medium text-[#1C2820] leading-none">
             All the love, in one place.
           </h1>
           <p className="text-sm text-[#1C2820]/65 mt-2 font-medium">
-            Review guest uploads, keep photos private in your vault, delete unwanted pictures, and download high-res files.
+            Review guest uploads, add your own photos, keep favourites private, and download high-res files.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setUploadOpen(true)}
+          className="self-start lg:self-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white text-xs font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 shrink-0"
+        >
+          <Upload className="w-4 h-4" />
+          <span>Upload photos</span>
+        </button>
       </div>
+
+      {/* Pinned spotlight banner */}
+      {spotlightId && (() => {
+        const pinned = memories.find((m) => m.id === spotlightId);
+        return (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[#E9EFEA] border border-[#2D4A3A]/20">
+            <div className="flex items-center gap-3 min-w-0">
+              {pinned && (
+                <img
+                  src={pinned.url}
+                  alt=""
+                  className="w-12 h-12 rounded-xl object-cover border border-[#1C2820]/10 shrink-0"
+                />
+              )}
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#2D4A3A] flex items-center gap-1.5">
+                  <Pin className="w-3.5 h-3.5" fill="currentColor" />
+                  <span>Pinned on all live screens</span>
+                </div>
+                <div className="text-xs text-[#1C2820]/70 font-medium truncate">
+                  {pinned ? `${pinned.caption ? `“${pinned.caption}” · ` : ''}${pinned.guestName}` : 'The slideshow is paused on this photo.'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={resumeSlideshow}
+              className="px-4 py-2.5 rounded-xl bg-[#2D4A3A] hover:bg-[#1F3628] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-colors shrink-0"
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>Resume Slideshow</span>
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-6 border-b border-[#1C2820]/10 overflow-x-auto no-scrollbar">
@@ -217,7 +207,7 @@ export default function HostPhotosPage() {
       {/* Search & Actions Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#1C2820]/40" />
             <input
               type="text"
@@ -231,7 +221,7 @@ export default function HostPhotosPage() {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-[#1C2820]/15 text-xs font-semibold bg-white text-[#1C2820] focus:outline-none focus:border-[#2D4A3A]"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#1C2820]/15 text-xs font-semibold bg-white text-[#1C2820] focus:outline-none focus:border-[#2D4A3A]"
           >
             <option value="all">All categories</option>
             {prompts.map((p) => (
@@ -267,7 +257,7 @@ export default function HostPhotosPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-bold">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs font-bold">
             <button
               onClick={handleDownloadSelected}
               className="px-3.5 py-2 rounded-xl bg-white border border-[#2D4A3A]/20 text-[#1C2820] hover:bg-[#FAF8F5] flex items-center gap-1.5 shadow-sm transition-all"
@@ -310,7 +300,7 @@ export default function HostPhotosPage() {
                 className="relative aspect-[4/3] bg-black/5 cursor-pointer overflow-hidden"
                 onClick={() => toggleSelect(item.id)}
               >
-                {item.url.startsWith('data:video') ? (
+                {item.type === 'video' ? (
                   <video
                     src={item.url}
                     muted
@@ -349,7 +339,7 @@ export default function HostPhotosPage() {
                   {item.isPrivate ? (
                     <Lock className="w-3 h-3 text-amber-300" />
                   ) : isSpotlighted ? (
-                    <Sparkles className="w-3 h-3 text-amber-300" />
+                    <Pin className="w-3 h-3 text-amber-300" fill="currentColor" />
                   ) : (
                     <div className="w-1.5 h-1.5 rounded-full bg-[#2D4A3A]"></div>
                   )}
@@ -357,7 +347,7 @@ export default function HostPhotosPage() {
                     {item.isPrivate
                       ? 'Private Vault'
                       : isSpotlighted
-                      ? 'Spotlighted'
+                      ? 'Pinned'
                       : 'Live Public'}
                   </span>
                 </div>
@@ -373,7 +363,7 @@ export default function HostPhotosPage() {
               {/* Caption & Metadata */}
               <div className="p-4 space-y-2 flex-1">
                 <p className="font-bold text-xs sm:text-sm text-[#1C2820] line-clamp-2 leading-snug">
-                  “{item.caption}”
+                  {item.caption && `“${item.caption}”`}
                 </p>
                 <div className="flex items-center justify-between text-xs text-[#1C2820]/60 font-medium">
                   <span className="font-bold text-[#1C2820]">{item.guestName}</span>
@@ -419,9 +409,10 @@ export default function HostPhotosPage() {
                       className={`p-1.5 rounded-lg hover:bg-black/5 transition-colors ${
                         isSpotlighted ? 'text-[#2D4A3A]' : 'text-[#1C2820]/60'
                       }`}
-                      title={isSpotlighted ? 'Release Spotlight' : 'Spotlight on live screens'}
+                      title={isSpotlighted ? 'Unpin from live screens' : 'Pin to live screens'}
+                      aria-label={isSpotlighted ? 'Unpin from live screens' : 'Pin to live screens'}
                     >
-                      <Sparkles className="w-4 h-4" />
+                      <Pin className="w-4 h-4" fill={isSpotlighted ? "currentColor" : "none"} />
                     </button>
                   )}
 
@@ -438,12 +429,12 @@ export default function HostPhotosPage() {
                   {/* Delete picture */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete photo by ${item.guestName}?\n"${item.caption}"`
-                        )
-                      ) {
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Delete photo by ${item.guestName}?`,
+                        message: `${item.caption ? `“${item.caption}”` : 'This photo'} will be removed for everyone. This can’t be undone.`,
+                      });
+                      if (ok) {
                         deleteMemory(item.id);
                         setSelectedIds((prev) => prev.filter((id) => id !== item.id));
                       }
@@ -470,6 +461,12 @@ export default function HostPhotosPage() {
         </div>
       )}
     </div>
+    {confirmDialog}
+    <HostUploadDialog
+      open={uploadOpen}
+      onClose={() => setUploadOpen(false)}
+      defaultPromptId={categoryFilter !== 'all' ? categoryFilter : undefined}
+    />
     </HostAuthGuard>
   );
 }

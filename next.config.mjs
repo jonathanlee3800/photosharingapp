@@ -9,18 +9,8 @@ const nextConfig = {
       },
     ],
   },
-  async rewrites() {
-    return [
-      { source: '/gallery', destination: '/user/gallery' },
-      { source: '/upload', destination: '/user/upload' },
-      { source: '/slideshow', destination: '/user/slideshow' },
-      { source: '/vote', destination: '/user/vote' },
-      { source: '/join', destination: '/user/join' },
-      { source: '/projector', destination: '/user/projector' },
-      { source: '/display', destination: '/user/projector' },
-      { source: '/live', destination: '/user/slideshow' },
-    ];
-  },
+  // Old event-less shortcuts (/gallery, /upload, ...) are redirected to the PIN screen in middleware,
+  // because without an event in the address they would show whatever event the browser opened last.
 };
 
 export default nextConfig;

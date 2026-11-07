@@ -38,12 +38,17 @@ export interface EventItem {
   prompts: PromptItem[];
   votingPromptId: string;
   createdAt: string;
+  ownerId?: string;
+  // Live voting round (votes are only accepted while a round is open)
+  votingOpen?: boolean;
+  votingEndsAt?: string | null;
 }
 
 export interface HostUser {
   id: string;
   name: string;
   email: string;
+  avatar?: string;
 }
 
 export const INITIAL_PROMPTS: PromptItem[] = [
@@ -55,7 +60,7 @@ export const INITIAL_PROMPTS: PromptItem[] = [
 
 export const INITIAL_EVENTS: EventItem[] = [
   {
-    id: 'event-1',
+    id: 'a0000000-0000-0000-0000-000000000001',
     title: 'Joshua & Simone',
     date: '24 May 2026',
     venue: 'The Glasshouse',
@@ -105,7 +110,7 @@ export const SAMPLE_PRESETS: PresetItem[] = [
 export const INITIAL_MEMORIES: MemoryItem[] = [
   {
     id: 'mem-1',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Hannah & Liam',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
@@ -119,7 +124,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-2',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Clara Vance',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=85',
@@ -133,7 +138,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-3',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Marcus & Elena',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=85',
@@ -147,7 +152,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-4',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Oliver Tan',
     type: 'video',
     duration: '0:24',
@@ -162,7 +167,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-5',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Sophie Lin',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=85',
@@ -176,7 +181,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-6',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Rachel (Maid of Honour)',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=85',
@@ -190,7 +195,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-7',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Lucas Meyer',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=85',
@@ -204,7 +209,7 @@ export const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: 'mem-8',
-    eventId: 'event-1',
+    eventId: 'a0000000-0000-0000-0000-000000000001',
     guestName: 'Grace & Noah',
     type: 'photo',
     url: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=1200&q=85',
