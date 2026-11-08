@@ -60,10 +60,14 @@ export default function HostOverviewPage() {
   const [roundPromptId, setRoundPromptId] = useState('');
   const { confirm, dialog: confirmDialog } = useConfirm();
 
-  // Full guest link, on whichever domain this page is open. Set after mount so server and browser render match.
-  const [siteOrigin, setSiteOrigin] = useState('https://memorieaisle.com');
-  useEffect(() => setSiteOrigin(window.location.origin), []);
-  const guestUrl = `${siteOrigin}/user/${currentEvent.code}`;
+  // Full guest link, dynamically adapting to localhost:3000 or production domain.
+  const [siteOrigin, setSiteOrigin] = useState('');
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSiteOrigin(window.location.origin);
+    }
+  }, []);
+  const guestUrl = siteOrigin ? `${siteOrigin}/user/${currentEvent.code}` : `/user/${currentEvent.code}`;
 
   // Generate real QR code for current event
   useEffect(() => {
@@ -93,7 +97,7 @@ export default function HostOverviewPage() {
 
   const handleDownloadQr = () => {
     downloadQrCode(guestUrl, currentEvent.title);
-    triggerToast('Downloading high-res QR code PNG');
+    triggerToast('Downloading high-res QR Code');
   };
 
   const handleAddPromptSubmit = (e: React.FormEvent) => {
@@ -167,11 +171,11 @@ export default function HostOverviewPage() {
         {/* Middle Row: Generated QR Code Card & Live Contest Card */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Real Generated QR Code Card */}
-          <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between space-y-6">
+          <div className="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-8 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-serif text-2xl sm:text-3xl text-[#1C2820]">
-                  Table QR Sign & Link
+                  Table QR Code & Link
                 </h2>
                 <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
                   Point phone camera at this QR code to join immediately without downloading an app.
@@ -225,24 +229,26 @@ export default function HostOverviewPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-2">
               <button
                 onClick={handleCopyLink}
-                className="py-2.5 rounded-xl border border-[#1C2820]/15 text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] flex items-center justify-center gap-2 transition-colors"
+                className="w-full min-w-0 py-2.5 px-2 sm:px-4 rounded-xl border border-[#1C2820]/15 text-[11px] sm:text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] flex items-center justify-center gap-1.5 sm:gap-2 transition-colors active:scale-[0.99] text-center"
               >
-                <Copy className="w-3.5 h-3.5" /> Copy Link
+                <Copy className="w-3.5 h-3.5 shrink-0 text-[#2D4A3A]" />
+                <span className="leading-tight">Copy Link</span>
               </button>
               <button
                 onClick={handleDownloadQr}
-                className="py-2.5 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#1F3628] transition-colors shadow-sm"
+                className="w-full min-w-0 py-2.5 px-2 sm:px-4 rounded-xl bg-[#2D4A3A] text-white text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 sm:gap-2 hover:bg-[#1F3628] transition-colors shadow-sm active:scale-[0.99] text-center"
               >
-                <Download className="w-3.5 h-3.5" /> Download QR Sign (PNG)
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span className="leading-tight">Download QR Code</span>
               </button>
             </div>
           </div>
 
           {/* Live Contest Round Card */}
-          <div className="lg:col-span-5 bg-[#F4F1EA] rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between space-y-6">
+          <div className="lg:col-span-5 bg-[#F4F1EA] rounded-3xl p-5 sm:p-8 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-serif text-2xl sm:text-3xl text-[#1C2820]">
                 The live round
@@ -267,7 +273,7 @@ export default function HostOverviewPage() {
               ) : (
                 <label className="block mb-3">
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-[#1C2820]/55 mb-1.5">
-                    Category for the next round
+                    Tag for the next round
                   </span>
                   <select
                     value={selectedRoundPromptId}
@@ -378,17 +384,17 @@ export default function HostOverviewPage() {
           </div>
         </div>
 
-        {/* Bottom Row: Mini-Categories Manager & Live Spotlight */}
+        {/* Bottom Row: Tags Manager & Live Spotlight */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Mini-Categories Manager for this Event */}
+          {/* Tags Manager for this Event */}
           <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm space-y-5">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-serif text-2xl sm:text-3xl text-[#1C2820]">
-                  Mini-Categories & Prompts
+                  Tags & Prompts
                 </h2>
                 <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
-                  Categories for {currentEvent.title}. Guests select one when sharing well-wishes.
+                  Tags for {currentEvent.title}. Guests select one when sharing well-wishes.
                 </p>
               </div>
               <button
@@ -396,7 +402,7 @@ export default function HostOverviewPage() {
                 onClick={() => setShowAddPrompt(!showAddPrompt)}
                 className="px-3.5 py-1.5 rounded-xl border border-[#1C2820]/15 text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] flex items-center gap-1.5 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" /> Add Category
+                <Plus className="w-3.5 h-3.5" /> Add Tag
               </button>
             </div>
 
@@ -418,7 +424,7 @@ export default function HostOverviewPage() {
                   type="text"
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
-                  placeholder="New category name (e.g. Best dance moves)"
+                  placeholder="New tag name (e.g. Best dance moves)"
                   className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-[#1C2820]/20 text-xs font-semibold"
                 />
                 <button
@@ -460,20 +466,20 @@ export default function HostOverviewPage() {
                                 count > 0 ? (
                                   <>
                                     <strong className="text-red-600">
-                                      All {count} {count === 1 ? 'photo/video' : 'photos and videos'} in this category
+                                      All {count} {count === 1 ? 'photo/video' : 'photos and videos'} with this tag
                                       will be permanently deleted
                                     </strong>
                                     . This can’t be undone.
                                   </>
                                 ) : (
-                                  'This category has no photos. Guests won’t be able to pick it anymore.'
+                                  'This tag has no photos. Guests won’t be able to pick it anymore.'
                                 ),
-                              confirmLabel: count > 0 ? `Delete category & ${count} ${count === 1 ? 'photo' : 'photos'}` : 'Delete category',
+                              confirmLabel: count > 0 ? `Delete tag & ${count} ${count === 1 ? 'photo' : 'photos'}` : 'Delete tag',
                             });
                             if (ok) deletePrompt(p.id);
                           }}
                           className="p-1.5 text-[#1C2820]/40 hover:text-red-600 transition-colors"
-                          title="Delete category"
+                          title="Delete tag"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

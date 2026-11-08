@@ -188,12 +188,12 @@ export default function CreateEventPage() {
             Create a New Event
           </h1>
           <p className="text-sm text-[#1C2820]/65 mt-1 font-medium">
-            Generate an instant QR code for guest phones and set up custom mini-categories for well-wishes.
+            Generate an instant QR code for guest phones and set up custom tags for well-wishes.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Event Details & Mini Categories (7 cols) */}
+          {/* Left Column: Event Details & Tags (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             {/* 1. Basic Details Card */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm space-y-5">
@@ -358,23 +358,23 @@ export default function CreateEventPage() {
               </div>
             </div>
 
-            {/* 3. Mini-Categories Builder Card */}
+            {/* 3. Tags Builder Card */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-serif text-2xl font-bold text-[#1C2820]">
-                    3. Mini-Categories & Prompts
+                    3. Tags & Prompts
                   </h2>
                   <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
-                    Guests can select these categories when uploading candid photos or video toasts.
+                    Guests can select these tags when uploading candid photos or video toasts.
                   </p>
                 </div>
                 <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold whitespace-nowrap shrink-0">
-                  {categories.length} {categories.length === 1 ? 'Prompt' : 'Prompts'}
+                  {categories.length} {categories.length === 1 ? 'Tag' : 'Tags'}
                 </span>
               </div>
 
-              {/* Existing Categories List */}
+              {/* Existing Tags List */}
               <div className="space-y-2">
                 {categories.map((cat) => (
                   <div
@@ -391,7 +391,7 @@ export default function CreateEventPage() {
                       onClick={() => handleRemoveCategory(cat.id)}
                       disabled={categories.length <= 1}
                       className="p-1.5 text-[#1C2820]/40 hover:text-red-600 disabled:opacity-20 transition-colors"
-                      title="Remove category"
+                      title="Remove tag"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -399,11 +399,11 @@ export default function CreateEventPage() {
                 ))}
               </div>
 
-              {/* Add New Category Row */}
+              {/* Add New Tag Row */}
               <div className="p-4 rounded-2xl border-2 border-dashed border-[#1C2820]/15 space-y-3">
                 <span className="text-xs font-bold text-[#1C2820] flex items-center gap-1.5">
                   <Tag className="w-3.5 h-3.5 text-[#2D4A3A]" />
-                  <span>Add another mini-category</span>
+                  <span>Add another tag</span>
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -494,7 +494,7 @@ export default function CreateEventPage() {
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>{isCreating ? 'Creating your event…' : 'Launch Event & Save QR'}</span>
+                  <span>{isCreating ? 'Creating your event…' : 'Launch Event & Save QR Code'}</span>
                 </button>
                 {submitError && (
                   <p className="text-[11px] text-red-600 font-semibold text-center">{submitError}</p>

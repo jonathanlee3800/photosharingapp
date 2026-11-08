@@ -91,7 +91,7 @@ function HostLoginContent() {
             Sign in to your event
           </h1>
           <p className="text-xs text-[#1C2820]/65 font-medium">
-            Manage your wedding QR codes, live screen spotlights, mini-categories, and moderation vault.
+            Manage your wedding QR codes, live screen spotlights, tags, and moderation vault.
           </p>
         </div>
 

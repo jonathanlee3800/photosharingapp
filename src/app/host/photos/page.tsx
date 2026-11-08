@@ -17,12 +17,14 @@ import {
   Filter,
   Play,
   Upload,
+  ChevronDown,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
 import HostEventHeader from '@/components/HostEventHeader';
 import { useConfirm } from '@/components/ConfirmDialog';
 import HostUploadDialog from '@/components/HostUploadDialog';
+import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
 export default function HostPhotosPage() {
   const {
@@ -44,6 +46,7 @@ export default function HostPhotosPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const searchPlaceholder = useSearchPlaceholder();
 
   // Host upload window (choose files, category, caption)
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -196,45 +199,98 @@ export default function HostPhotosPage() {
         ))}
       </div>
 
-      {/* Search & Actions Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full sm:w-auto">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#1C2820]/40" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search captions or guests..."
-              className="w-full sm:w-72 pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/15 text-xs font-semibold bg-white focus:outline-none focus:border-[#2D4A3A]"
-            />
-          </div>
-
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#1C2820]/15 text-xs font-semibold bg-white text-[#1C2820] focus:outline-none focus:border-[#2D4A3A]"
-          >
-            <option value="all">All categories</option>
-            {prompts.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+      {/* Search & Actions Bar (Full 12-column width Search Bar with controls beneath) */}
+      <div className="space-y-3.5">
+        {/* Full-width Search Bar */}
+        <div className="relative w-full">
+          <Search className="w-4 h-4 sm:w-5 sm:h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#1C2820]/40 pointer-events-none" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="w-full h-12 pl-11 sm:pl-12 pr-10 rounded-2xl border border-[#1C2820]/15 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-[#1C2820]/40 focus:outline-none focus:ring-2 focus:ring-[#2D4A3A]/20 focus:border-[#2D4A3A] shadow-sm transition-all [&::-webkit-search-cancel-button]:hidden"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#1C2820]/10 hover:bg-[#1C2820]/20 text-[#1C2820]/70 flex items-center justify-center transition-all"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        <button
-          onClick={handleSelectAll}
-          className="text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] flex items-center gap-1.5 self-end sm:self-auto"
-        >
-          <CheckSquare className="w-4 h-4 text-[#2D4A3A]" />
-          <span>
-            {selectedIds.length === filteredMemories.length
-              ? 'Deselect All'
-              : 'Select All'}
-          </span>
-        </button>
+        {/* Controls row: Tag Filter & Results Count on Left, Select All on Right */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+          {/* Top on mobile, Left on desktop: Dropdown & Select All (or Count) */}
+          <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto min-w-0">
+            {/* Responsive All Tags Dropdown: stays natural width when space is plenty, shrinks fluidly at the exact same rate as the search bar when resolution compresses */}
+            <div className="relative flex-1 sm:flex-initial min-w-0 sm:w-auto">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full sm:w-auto appearance-none h-10 pl-3.5 pr-8 rounded-xl border border-[#1C2820]/15 text-xs font-semibold bg-white text-[#1C2820] focus:outline-none focus:border-[#2D4A3A] shadow-sm cursor-pointer truncate max-w-full sm:max-w-xs transition-all"
+              >
+                <option value="all">All tags</option>
+                {prompts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.icon ? `${p.icon} ` : ''}{p.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-[#1C2820]/40 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Select All on mobile right next to dropdown */}
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="sm:hidden h-10 px-3.5 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] flex items-center justify-center gap-1.5 shadow-sm transition-all shrink-0 whitespace-nowrap"
+            >
+              <CheckSquare className="w-4 h-4 text-[#2D4A3A]" />
+              <span>
+                {selectedIds.length === filteredMemories.length && filteredMemories.length > 0
+                  ? 'Deselect All'
+                  : 'Select All'}
+              </span>
+            </button>
+
+            {/* Photo count: visible on desktop alongside dropdown */}
+            <span className="hidden sm:inline-block text-xs font-medium text-[#1C2820]/55 shrink-0">
+              Showing {filteredMemories.length} {filteredMemories.length === 1 ? 'photo' : 'photos'}
+              {searchQuery.trim() && (
+                <span> for &ldquo;{searchQuery.trim()}&rdquo;</span>
+              )}
+            </span>
+          </div>
+
+          {/* Mobile photo count row */}
+          <div className="flex sm:hidden items-center justify-between text-xs font-medium text-[#1C2820]/55 px-1">
+            <span>
+              Showing {filteredMemories.length} {filteredMemories.length === 1 ? 'photo' : 'photos'}
+              {searchQuery.trim() && (
+                <span> for &ldquo;{searchQuery.trim()}&rdquo;</span>
+              )}
+            </span>
+          </div>
+
+          {/* Desktop Select All button */}
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="hidden sm:flex h-10 px-3.5 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] items-center justify-center gap-2 shadow-sm transition-all shrink-0"
+          >
+            <CheckSquare className="w-4 h-4 text-[#2D4A3A]" />
+            <span>
+              {selectedIds.length === filteredMemories.length && filteredMemories.length > 0
+                ? 'Deselect All'
+                : 'Select All'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Floating Selection Bar */}

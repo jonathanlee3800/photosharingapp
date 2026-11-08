@@ -111,7 +111,7 @@ export default function HostRoundPage() {
 
             {contenders.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 border border-[#1C2820]/10 shadow-sm text-center">
-                <p className="font-serif text-2xl text-[#1C2820]">No photos in this category yet</p>
+                <p className="font-serif text-2xl text-[#1C2820]">No photos with this tag yet</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">

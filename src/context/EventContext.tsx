@@ -978,7 +978,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         };
       })
     );
-    triggerToast(`Added category: "${label}"`, 'Immediately selectable by guests');
+    triggerToast(`Added tag: "${label}"`, 'Immediately selectable by guests');
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
       try {
@@ -999,19 +999,19 @@ export function EventProvider({ children }: { children: ReactNode }) {
   // Deletes a category AND permanently deletes every photo/video in it (DB rows, votes, R2 files)
   const deletePrompt = async (promptId: string) => {
     if (votingRound.isOpen && votingRound.promptId === promptId) {
-      triggerToast('Close the live round first', 'This category is being voted on right now');
+      triggerToast('Close the live round first', 'This tag is being voted on right now');
       return;
     }
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
-      // Find every post in this category from the database (not just what this screen has loaded)
+      // Find every post in this tag from the database (not just what this screen has loaded)
       const { data: rows, error: findError } = await supabase
         .from('posts')
         .select('id')
         .eq('event_id', currentEvent.id)
         .eq('category_tag', promptId);
       if (findError) {
-        triggerToast('Could not delete category', findError.message);
+        triggerToast('Could not delete tag', findError.message);
         return;
       }
       const postIds = (rows || []).map((r: { id: string }) => r.id);
@@ -1021,7 +1021,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         await deleteMediaFromR2({ postIds });
         const { error: deleteError } = await supabase.from('posts').delete().in('id', postIds);
         if (deleteError) {
-          triggerToast('Could not delete the category’s photos', deleteError.message);
+          triggerToast('Could not delete the tag’s photos', deleteError.message);
           return;
         }
       }
@@ -1049,7 +1049,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       })
     );
     triggerToast(
-      'Category deleted',
+      'Tag deleted',
       removedIds.size > 0 ? `${removedIds.size} photos and videos permanently deleted` : undefined
     );
 
@@ -1059,10 +1059,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Host: open a voting round on the chosen category (optional time limit)
+  // Host: open a voting round on the chosen tag (optional time limit)
   const startVotingRound = async (promptId: string, durationMinutes: number | null) => {
     if (!promptId) {
-      triggerToast('Pick a category for the round first');
+      triggerToast('Pick a tag for the round first');
       return;
     }
     const endsAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60_000).toISOString() : null;
@@ -1271,7 +1271,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       sendReaction('✨');
       triggerToast(
         `New ${created.type} shared to Live Gallery & Projector`,
-        `Categorised under "${getPrompt(created.promptId).label}"`
+        `Tagged under "${getPrompt(created.promptId).label}"`
       );
     }
 

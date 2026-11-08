@@ -280,10 +280,10 @@ export default function UploadPage() {
           </label>
         </div>
 
-        {/* Category */}
+        {/* Tag */}
         {prompts.length > 0 && (
           <div className="space-y-2.5">
-            <p className="px-1 text-[13px] font-medium uppercase tracking-[0.08em] text-[#1C2820]/45">Category</p>
+            <p className="px-1 text-[13px] font-medium uppercase tracking-[0.08em] text-[#1C2820]/45">Tag</p>
             <div className="flex flex-wrap gap-2">
               {prompts.map((p) => {
                 const active = promptId === p.id;

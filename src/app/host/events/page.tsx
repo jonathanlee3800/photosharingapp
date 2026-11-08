@@ -63,7 +63,7 @@ export default function HostEventsPage() {
               Select an Event
             </h1>
             <p className="text-xs sm:text-sm text-[#1C2820]/65 mt-1 font-medium">
-              Choose an event below to access its live table QR codes, mini-categories, and moderation vault.
+              Choose an event below to access its live table QR codes, tags, and moderation vault.
             </p>
           </div>
 
@@ -91,7 +91,7 @@ export default function HostEventsPage() {
                 Create New Celebration
               </h3>
               <p className="text-xs text-[#1C2820]/65 font-medium mt-1 max-w-xs leading-relaxed">
-                Set up a new wedding or reception, generate fresh table QR codes, and customize guest categories.
+                Set up a new wedding or reception, generate fresh table QR codes, and customize guest tags.
               </p>
             </div>
             <span className="mt-2 text-xs font-bold text-[#2D4A3A] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
@@ -154,10 +154,10 @@ export default function HostEventsPage() {
 
                   {/* Body Content */}
                   <div className="p-5 space-y-4">
-                    {/* Mini-Categories badge pills */}
+                    {/* Tags badge pills */}
                     <div className="space-y-1.5">
                       <div className="text-[11px] font-bold text-[#1C2820]/60 uppercase tracking-wide flex items-center justify-between">
-                        <span>Mini-Categories ({ev.prompts?.length || 0})</span>
+                        <span>Tags ({ev.prompts?.length || 0})</span>
                         <Tag className="w-3 h-3 text-[#2D4A3A]" />
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -212,7 +212,7 @@ export default function HostEventsPage() {
                         const ok = await confirm({
                           title: `Delete “${ev.title}”?`,
                           message:
-                            'This permanently deletes the event with all its photos, videos, categories and votes. Guests’ QR codes will stop working. This can’t be undone.',
+                            'This permanently deletes the event with all its photos, videos, tags and votes. Guests’ QR codes will stop working. This can’t be undone.',
                           confirmLabel: 'Delete event',
                         });
                         if (ok) deleteEvent(ev.id);

@@ -214,9 +214,9 @@ export default function HostUploadDialog({
             </div>
           )}
 
-          {/* Category */}
+          {/* Tag */}
           <div className="space-y-2">
-            <span className="block text-xs font-bold uppercase tracking-wide text-[#1C2820]">Category</span>
+            <span className="block text-xs font-bold uppercase tracking-wide text-[#1C2820]">Tag</span>
             <div className="flex flex-wrap gap-2">
               {prompts.map((p) => {
                 const active = promptId === p.id;

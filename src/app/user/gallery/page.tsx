@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Sparkles, Heart, Film, Trophy, Plus, Search, ChevronRight, X, Camera } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import PhotoLightboxModal from '@/components/PhotoLightboxModal';
+import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 
 const REACTION_EMOJIS = ['❤️', '🥂', '✨', '😂', '🎉'];
 const PAGE_SIZE = 24;
@@ -28,6 +29,7 @@ export default function GalleryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const searchPlaceholder = useSearchPlaceholder();
 
   const filtered = publicMemories.filter((m) => {
     if (selectedPromptId !== 'all' && m.promptId !== selectedPromptId) return false;
@@ -211,7 +213,7 @@ export default function GalleryPage() {
         </section>
       )}
 
-      {/* Search + categories (stay pinned under the top bar while scrolling) */}
+      {/* Search + tags (stay pinned under the top bar while scrolling) */}
       <div className="sticky z-30 glass border-b border-[#1C2820]/[0.06] top-[calc(3.5rem+env(safe-area-inset-top))] md:top-16">
         <div className="px-4 md:px-8 pt-3 pb-3 space-y-3">
           <div className="relative">
@@ -220,9 +222,10 @@ export default function GalleryPage() {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search captions or names"
+              placeholder={searchPlaceholder}
+              aria-label="Search photos by guest name or caption"
               enterKeyHint="search"
-              className="w-full h-11 pl-11 pr-10 rounded-full bg-[#1C2820]/[0.05] text-[15px] text-[#1C2820] placeholder:text-[#1C2820]/40 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all [&::-webkit-search-cancel-button]:hidden"
+              className="w-full h-11 pl-11 pr-10 rounded-full bg-[#1C2820]/[0.05] text-[14px] sm:text-[15px] text-[#1C2820] placeholder:text-[#1C2820]/40 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all [&::-webkit-search-cancel-button]:hidden"
             />
             {searchQuery && (
               <button
@@ -235,6 +238,21 @@ export default function GalleryPage() {
               </button>
             )}
           </div>
+
+          {searchQuery.trim() && (
+            <div className="flex items-center justify-between text-[12px] text-[#1C2820]/65 font-medium px-1">
+              <span>
+                Found {filtered.length} {filtered.length === 1 ? 'photo' : 'photos'} for &ldquo;{searchQuery.trim()}&rdquo;
+              </span>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-[#2D4A3A] hover:underline font-semibold"
+              >
+                Clear
+              </button>
+            </div>
+          )}
 
           <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
             {[{ id: 'all', icon: '', label: 'All' }, ...prompts].map((p) => {
@@ -328,12 +346,22 @@ export default function GalleryPage() {
             {searchQuery ? <Search className="w-7 h-7" /> : <Sparkles className="w-7 h-7" />}
           </div>
           <p className="font-serif text-[26px] text-[#1C2820]">
-            {searchQuery ? 'No matches' : 'Nothing here yet'}
+            {searchQuery ? 'No photos found' : 'Nothing here yet'}
           </p>
           <p className="text-[15px] text-[#1C2820]/55 max-w-xs">
-            {searchQuery ? 'Try a different name or word.' : 'Be the first to share a moment in this category.'}
+            {searchQuery
+              ? `No moments matched "${searchQuery}". Try searching by a guest’s name or words from a caption.`
+              : 'Be the first to share a moment with this tag.'}
           </p>
-          {!searchQuery && (
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="mt-2 h-11 px-5 rounded-2xl bg-[#E9EFEA] text-[#2D4A3A] text-[14px] font-semibold press"
+            >
+              Clear search
+            </button>
+          ) : (
             <Link
               href={`/user/${currentEvent.code}/upload`}
               className="mt-2 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"

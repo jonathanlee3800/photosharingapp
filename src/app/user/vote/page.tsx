@@ -107,7 +107,7 @@ export default function VotePage() {
       {/* Candidates */}
       {contenders.length === 0 ? (
         <div className="py-14 text-center flex flex-col items-center gap-3">
-          <p className="font-serif text-[26px] text-[#1C2820]">No photos in this category yet</p>
+          <p className="font-serif text-[26px] text-[#1C2820]">No photos with this tag yet</p>
           <Link
             href={`/user/${currentEvent.code}/upload`}
             className="h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"

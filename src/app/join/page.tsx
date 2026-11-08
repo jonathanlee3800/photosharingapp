@@ -110,7 +110,7 @@ function EnterPin() {
         </form>
 
         <p className="mt-6 text-[14px] text-white/65 text-center max-w-xs animate-fade-up" style={{ animationDelay: '120ms' }}>
-          Find the PIN on the big screen or the QR sign at your table.
+          Find the PIN on the big screen or the QR code at your table.
         </p>
       </div>
 
