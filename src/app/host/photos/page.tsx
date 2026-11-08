@@ -40,7 +40,7 @@ export default function HostPhotosPage() {
   } = useEvent();
 
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [filterTab, setFilterTab] = useState<'all' | 'live' | 'private' | 'review'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'live' | 'private'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -57,9 +57,6 @@ export default function HostPhotosPage() {
   const filteredMemories = memories.filter((item) => {
     if (filterTab === 'live' && item.isPrivate) return false;
     if (filterTab === 'private' && !item.isPrivate) return false;
-    if (filterTab === 'review') {
-      if (!item.isPrivate && item.votes > 25) return false;
-    }
 
     if (categoryFilter !== 'all' && item.promptId !== categoryFilter) return false;
 
@@ -174,11 +171,6 @@ export default function HostPhotosPage() {
             id: 'private',
             label: 'Private vault',
             count: memories.filter((m) => m.isPrivate).length,
-          },
-          {
-            id: 'review',
-            label: 'Needs review',
-            count: memories.filter((m) => m.isPrivate || m.votes <= 25).length,
           },
         ].map((tab) => (
           <button

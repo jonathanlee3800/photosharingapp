@@ -64,7 +64,7 @@ export default function ProjectorScreen({
 
   useEffect(() => {
     const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+      typeof window !== 'undefined' ? window.location.origin : 'https://www.memorieaisle.com';
     setJoinHost(origin.replace(/^https?:\/\//, ''));
     const targetUrl = `${origin}/user/${currentEvent.code}`;
     generateQrDataUrl(targetUrl, { width: 200, margin: 1 }).then((data) => {

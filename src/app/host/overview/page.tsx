@@ -62,7 +62,7 @@ export default function HostOverviewPage() {
 
   // Generate real QR code for current event
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.memorieaisle.com';
     const targetUrl = `${origin}/user/${currentEvent.code}`;
 
     generateQrDataUrl(targetUrl, { width: 400, margin: 2 }).then((data) => {
@@ -93,7 +93,7 @@ export default function HostOverviewPage() {
   };
 
   const handleDownloadQr = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://memorieaisle.app';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.memorieaisle.com';
     const targetUrl = `${origin}/user/${currentEvent.code}`;
     downloadQrCode(targetUrl, currentEvent.title);
     triggerToast('Downloading high-res QR code PNG');

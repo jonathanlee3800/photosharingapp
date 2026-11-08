@@ -26,8 +26,13 @@ export default function Navbar() {
     return null;
   }
 
+  // Event-specific guest items (event name, guest links, Share Moment, avatar) only belong on guest
+  // pages. On host pages a visitor who is not signed in (e.g. /host/login) just sees the brand.
+  const inGuestArea = Boolean(pathname?.startsWith("/user"));
+  const showEvent = !isGuest || inGuestArea;
+
   // Guest links only (desktop); on phones the bottom tab bar handles navigation
-  const navLinks = isGuest
+  const navLinks = isGuest && inGuestArea
     ? [
         { label: 'Gallery', href: `${base}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
         { label: 'Live Slideshow', href: `${base}/slideshow`, matchSuffix: '/slideshow', icon: Play },
@@ -51,7 +56,7 @@ export default function Navbar() {
           {/* Left: Brand & Active Event Title */}
           <div className="flex items-center gap-6 min-w-0">
             <Link
-              href={!isGuest ? '/host/events' : hasJoined ? `${base}/gallery` : base}
+              href={!isGuest ? '/host/events' : !inGuestArea ? '/host/login' : hasJoined ? `${base}/gallery` : base}
               className="flex items-center gap-2.5 min-w-0 press"
             >
               <span className="w-8 h-8 rounded-[10px] bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shrink-0">
@@ -60,18 +65,20 @@ export default function Navbar() {
               <div className="flex flex-col min-w-0">
                 {/* Phones: the event is what guests care about, so it leads */}
                 <span className="md:hidden font-serif text-[19px] font-semibold tracking-tight text-[#1C2820] leading-tight truncate">
-                  {isGuest ? currentEvent.title : 'memorie aisle'}
+                  {isGuest && inGuestArea ? currentEvent.title : 'memorie aisle'}
                 </span>
                 <span className="md:hidden text-[10px] uppercase tracking-[0.14em] text-[#2D4A3A]/80 font-bold leading-tight">
-                  {isGuest ? 'memorie aisle' : 'Host portal'}
+                  {!isGuest ? 'Host portal' : inGuestArea ? 'memorie aisle' : ''}
                 </span>
                 {/* Desktop */}
                 <span className="hidden md:block font-serif text-2xl tracking-tight text-[#1C2820] leading-none">
                   memorie aisle
                 </span>
-                <span className="hidden md:block text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-xs">
-                  {currentEvent.title}
-                </span>
+                {showEvent && (
+                  <span className="hidden md:block text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-xs">
+                    {currentEvent.title}
+                  </span>
+                )}
               </div>
             </Link>
 
@@ -99,7 +106,7 @@ export default function Navbar() {
           {/* Right: Actions */}
           <div className="flex items-center gap-2.5 shrink-0">
             {/* Upload Button (guests, desktop/tablet; phones use the tab bar camera) */}
-            {isGuest && (
+            {isGuest && inGuestArea && (
               <Link
                 href={`${base}/upload`}
                 className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
@@ -110,7 +117,7 @@ export default function Navbar() {
             )}
 
             {/* Guest avatar (phones): opens Home, where they can change name or leave */}
-            {isGuest && hasJoined && (
+            {isGuest && hasJoined && inGuestArea && (
               <Link
                 href={base}
                 aria-label={`Signed in as ${guestName}. Change name`}
