@@ -7,61 +7,82 @@ import { Heart, Clock, X, Trophy, ChevronRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useEvent } from '@/context/EventContext';
 
-const DISMISSED_KEY = 'withlove_dismissed_round';
+// Per event: the close time of the last winner reveal this phone has shown
+const SEEN_REVEAL_KEY = 'withlove_seen_reveal';
+// Don't pop up results from rounds that closed long ago
+const REVEAL_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 /**
- * Pops up on every guest screen the moment the host starts a live voting round,
- * with the round's photos and vote buttons right inside (no navigation needed).
+ * Announces a live voting round on every guest screen for as long as the round is open:
+ * when it starts, when the guest comes back to the app, and when they open or reload the page.
+ * "Maybe later" keeps it away while they move around the app; a reload brings it back.
  */
 export default function LiveRoundSheet() {
   const pathname = usePathname() || '';
   const { votingRound, publicMemories, getPrompt, isHostLoggedIn, currentEvent, eventsLoaded } = useEvent();
   const [open, setOpen] = useState(false);
   const wasActiveRef = useRef<boolean | null>(null);
-  // Winner reveal: set to the round's category when the host closes the round
+  // The round this guest closed the announcement for (or already went to). In memory, so it resets on reload.
+  const dismissedRoundRef = useRef<string | null>(null);
+  // Winner reveal: set to the round's category when there's a result this phone hasn't seen
   const [revealPromptId, setRevealPromptId] = useState<string | null>(null);
-  const wasOpenRef = useRef<boolean | null>(null);
 
-  // Identifies one round (category + end time) so a closed sheet doesn't keep coming back
+  // Identifies one round (category + end time)
   const roundKey = `${currentEvent.id}|${votingRound.promptId}|${votingRound.endsAt ?? 'open'}`;
   const isGuestScreen = pathname.startsWith('/user') && !pathname.endsWith('/projector') && !pathname.endsWith('/vote');
 
   useEffect(() => {
-    // Wait for real event data, otherwise the initial "no round" placeholder looks like a round starting
+    // Wait for real event data, otherwise the initial "no round" placeholder looks like a round ending
     if (isHostLoggedIn || !eventsLoaded) return;
     const wasActive = wasActiveRef.current;
     wasActiveRef.current = votingRound.isActive;
 
-    if (!votingRound.isActive) return;
-    let dismissed = false;
-    try {
-      dismissed = sessionStorage.getItem(DISMISSED_KEY) === roundKey;
-    } catch (e) {}
-
-    // A round just started while the guest is here, or they arrived during a round they haven't closed
-    if (wasActive === false || (wasActive === null && !dismissed)) {
-      setOpen(true);
-      try {
-        navigator.vibrate?.(60);
-      } catch (e) {}
+    if (!votingRound.isActive) {
+      setOpen(false);
+      return;
     }
-  }, [votingRound.isActive, roundKey, isHostLoggedIn, eventsLoaded]);
 
-  // The host closed the round (Close & Reveal Winner): show the winners to everyone
+    // A fresh start always announces, even if the same category was dismissed in an earlier round
+    if (wasActive === false) dismissedRoundRef.current = null;
+    // A new round takes over from the previous round's results
+    setRevealPromptId(null);
+
+    // Already at the round: nothing to announce, now or after they leave the page
+    if (pathname.endsWith('/vote')) {
+      dismissedRoundRef.current = roundKey;
+      setOpen(false);
+      return;
+    }
+    if (!isGuestScreen || dismissedRoundRef.current === roundKey) return;
+
+    setOpen(true);
+    try {
+      navigator.vibrate?.(60);
+    } catch (e) {}
+  }, [votingRound.isActive, roundKey, isHostLoggedIn, eventsLoaded, pathname, isGuestScreen]);
+
+  // Winner reveal, once per guest per round, whenever there's a recent result this phone hasn't seen:
+  // watching live, phone was locked / app in the background (re-checked on return), or opened afterwards.
   useEffect(() => {
     if (isHostLoggedIn || !eventsLoaded) return;
-    const wasOpen = wasOpenRef.current;
-    wasOpenRef.current = votingRound.isOpen;
-    if (wasOpen === true && !votingRound.isOpen && votingRound.promptId) {
-      setOpen(false);
-      setRevealPromptId(votingRound.promptId);
-      try {
-        navigator.vibrate?.([60, 40, 60]);
-      } catch (e) {}
-    }
-  }, [votingRound.isOpen, votingRound.promptId, isHostLoggedIn, eventsLoaded]);
+    // Only on guest pages where the pop-up can render, so it is never marked seen without being shown
+    if (!pathname.startsWith('/user') || pathname.endsWith('/projector')) return;
+    const closedAt = votingRound.closedAt;
+    if (votingRound.isOpen || !closedAt || !votingRound.promptId) return;
+    if (Date.now() - new Date(closedAt).getTime() > REVEAL_WINDOW_MS) return;
+    const seenKey = `${SEEN_REVEAL_KEY}:${currentEvent.id}`;
+    try {
+      if (localStorage.getItem(seenKey) === closedAt) return;
+      localStorage.setItem(seenKey, closedAt);
+    } catch (e) {}
+    setOpen(false);
+    setRevealPromptId(votingRound.promptId);
+    try {
+      navigator.vibrate?.([60, 40, 60]);
+    } catch (e) {}
+  }, [votingRound.isOpen, votingRound.closedAt, votingRound.promptId, isHostLoggedIn, eventsLoaded, currentEvent.id, pathname]);
 
   // Celebrate when the winners appear
   useEffect(() => {
@@ -96,24 +117,23 @@ export default function LiveRoundSheet() {
     };
   }, [open, isGuestScreen, canShowReveal]);
 
+  const closeReveal = () => setRevealPromptId(null);
+
   const close = () => {
     setOpen(false);
-    setRevealPromptId(null);
-    try {
-      sessionStorage.setItem(DISMISSED_KEY, roundKey);
-    } catch (e) {}
+    dismissedRoundRef.current = roundKey;
   };
 
   // Close with Escape (desktop)
   useEffect(() => {
     if (!open && !revealPromptId) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && (revealPromptId ? closeReveal() : close());
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
   if (canShowReveal && revealPromptId) {
-    return <WinnerReveal promptId={revealPromptId} onClose={close} />;
+    return <WinnerReveal promptId={revealPromptId} onClose={closeReveal} />;
   }
 
   if (!open || isHostLoggedIn || !isGuestScreen || !votingRound.isOpen) return null;

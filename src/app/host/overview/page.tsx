@@ -60,15 +60,17 @@ export default function HostOverviewPage() {
   const [roundPromptId, setRoundPromptId] = useState('');
   const { confirm, dialog: confirmDialog } = useConfirm();
 
+  // Full guest link, on whichever domain this page is open. Set after mount so server and browser render match.
+  const [siteOrigin, setSiteOrigin] = useState('https://memorieaisle.com');
+  useEffect(() => setSiteOrigin(window.location.origin), []);
+  const guestUrl = `${siteOrigin}/user/${currentEvent.code}`;
+
   // Generate real QR code for current event
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.memorieaisle.com';
-    const targetUrl = `${origin}/user/${currentEvent.code}`;
-
-    generateQrDataUrl(targetUrl, { width: 400, margin: 2 }).then((data) => {
+    generateQrDataUrl(guestUrl, { width: 400, margin: 2 }).then((data) => {
       setQrDataUrl(data);
     });
-  }, [currentEvent.id]);
+  }, [guestUrl]);
 
   // While a round is open it shows that round's category; otherwise the category picked for the next round
   const selectedRoundPromptId =
@@ -85,17 +87,12 @@ export default function HostOverviewPage() {
   const votingTotal = votingCandidates.reduce((sum, m) => sum + (m.votes || 0), 0);
 
   const handleCopyLink = () => {
-    if (typeof window !== 'undefined') {
-      const url = `${window.location.origin}/user/${currentEvent.code}`;
-      navigator.clipboard?.writeText(url);
-    }
-    triggerToast('Event link copied to clipboard', `/user/${currentEvent.code}`);
+    navigator.clipboard?.writeText(guestUrl);
+    triggerToast('Event link copied to clipboard', guestUrl);
   };
 
   const handleDownloadQr = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.memorieaisle.com';
-    const targetUrl = `${origin}/user/${currentEvent.code}`;
-    downloadQrCode(targetUrl, currentEvent.title);
+    downloadQrCode(guestUrl, currentEvent.title);
     triggerToast('Downloading high-res QR code PNG');
   };
 
@@ -206,7 +203,7 @@ export default function HostOverviewPage() {
                 </div>
                 <div className="flex items-center justify-between bg-[#FAF8F5] rounded-xl px-4 py-2.5 border border-[#1C2820]/15">
                   <span className="text-xs sm:text-sm font-mono font-semibold text-[#1C2820] truncate pr-2">
-                    /user/{currentEvent.code}
+                    {guestUrl}
                   </span>
                   <button
                     onClick={handleCopyLink}
@@ -372,7 +369,7 @@ export default function HostOverviewPage() {
                 </>
               )}
               <Link
-                href={`/user/${currentEvent.code}/vote`}
+                href={`/host/${currentEvent.code}/round`}
                 className="px-4 py-3 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] transition-colors"
               >
                 View

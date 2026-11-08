@@ -42,6 +42,8 @@ export interface EventItem {
   // Live voting round (votes are only accepted while a round is open)
   votingOpen?: boolean;
   votingEndsAt?: string | null;
+  // When the host last closed a round (drives the winner reveal for guests who missed it live)
+  votingClosedAt?: string | null;
 }
 
 export interface HostUser {

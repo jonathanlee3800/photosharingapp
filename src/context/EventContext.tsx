@@ -42,6 +42,8 @@ export interface VotingRound {
   endsAt: string | null;
   // Seconds left on the round timer, or null for an open-ended round
   secondsLeft: number | null;
+  // When the host last closed a round (null while a round is open or none has run)
+  closedAt: string | null;
 }
 
 interface EventContextType {
@@ -283,6 +285,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
           ownerId: e.owner_id,
           votingOpen: Boolean(e.voting_open),
           votingEndsAt: e.voting_ends_at || null,
+          votingClosedAt: e.voting_closed_at || null,
         }));
         setEvents(mapped);
       }
@@ -431,13 +434,29 @@ export function EventProvider({ children }: { children: ReactNode }) {
           fetchEventsFromDb();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // (Re)connected: re-fetch so changes missed while offline (e.g. a round closing) are picked up
+        if (status === 'SUBSCRIBED') fetchEventsFromDb();
+      });
 
     return () => {
       subscription?.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [fetchEventsFromDb]);
+
+  // Phones pause the live connection while the screen is locked or the browser is in the background.
+  // When the guest comes back, re-fetch so anything missed (new photos, a round opening or closing) shows up.
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetchEventsFromDb();
+      if (isUuid(currentEventId)) fetchPostsForEvent(currentEventId);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchEventsFromDb, fetchPostsForEvent, currentEventId]);
 
   // Save to LocalStorage
   useEffect(() => {
@@ -634,6 +653,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     promptId: currentEvent.votingPromptId || prompts[0]?.id || '',
     endsAt: votingEndsAt,
     secondsLeft,
+    closedAt: currentEvent.votingClosedAt || null,
   };
 
   // Votes are only allowed on photos in the live round's category
@@ -1046,7 +1066,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       return;
     }
     const endsAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60_000).toISOString() : null;
-    const patch = { votingOpen: true, votingEndsAt: endsAt, votingPromptId: promptId };
+    const patch = { votingOpen: true, votingEndsAt: endsAt, votingPromptId: promptId, votingClosedAt: null };
     setEvents((prev) => prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, ...patch } : ev)));
     setNowMs(Date.now());
     triggerToast(
@@ -1057,7 +1077,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
       const { error } = await supabase
         .from('events')
-        .update({ voting_open: true, voting_ends_at: endsAt, voting_prompt_id: promptId })
+        .update({ voting_open: true, voting_ends_at: endsAt, voting_prompt_id: promptId, voting_closed_at: null })
         .eq('id', currentEvent.id);
       if (error) {
         console.warn('startVotingRound error:', error);
@@ -1069,13 +1089,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Host: close the round and return the winning photo (most votes in the round's category)
   const closeVotingRound = async (): Promise<MemoryItem | null> => {
+    // Saved on the event so guests who weren't watching still get the winner reveal later
+    const closedAt = new Date().toISOString();
     const winner =
       publicMemories
         .filter((m) => m.promptId === votingRound.promptId)
         .sort((a, b) => b.votes - a.votes)[0] || null;
 
     setEvents((prev) =>
-      prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, votingOpen: false, votingEndsAt: null } : ev))
+      prev.map((ev) =>
+        ev.id === currentEvent.id ? { ...ev, votingOpen: false, votingEndsAt: null, votingClosedAt: closedAt } : ev
+      )
     );
     triggerToast(
       'Voting round closed',
@@ -1085,7 +1109,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
       const { error } = await supabase
         .from('events')
-        .update({ voting_open: false, voting_ends_at: null })
+        .update({ voting_open: false, voting_ends_at: null, voting_closed_at: closedAt })
         .eq('id', currentEvent.id);
       if (error) {
         console.warn('closeVotingRound error:', error);
