@@ -137,9 +137,8 @@ interface EventContextType {
   spotlightId: string | null;
   setSpotlightId: (id: string | null) => void;
   currentSlideIdx: number;
-  setCurrentSlideIdx: React.Dispatch<React.SetStateAction<number>>;
   isSlideshowPlaying: boolean;
-  setIsSlideshowPlaying: React.Dispatch<React.SetStateAction<boolean>>;
+  toggleSlideshowPlaying: () => void;
   activeSlideMemory: MemoryItem;
   cycleNextSlide: () => void;
   cyclePrevSlide: () => void;
@@ -196,6 +195,9 @@ const toHostUser = (user: any): HostUser => ({
   avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
 });
 
+// How long each photo shows in the slideshow
+const SLIDE_MS = 5500;
+
 const DEFAULT_COVER_URL =
   'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85';
 
@@ -219,6 +221,9 @@ const mapDbEvent = (e: any): EventItem => ({
   votingEndsAt: e.voting_ends_at || null,
   votingClosedAt: e.voting_closed_at || null,
   roundVoteTotal: Number(e.round_vote_total) || 0,
+  slideshowAnchorAt: e.slideshow_anchor_at || null,
+  slideshowAnchorIndex: Number(e.slideshow_anchor_index) || 0,
+  slideshowPaused: Boolean(e.slideshow_paused),
 });
 
 // Adds or refreshes one event, keeping the owner id (only a host's own query includes it) and dropping the sample event
@@ -244,6 +249,7 @@ const mapDbPost = (p: any): MemoryItem => ({
   votes: p.votes_count || 0,
   votedByMe: false,
   timestamp: new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  createdAt: p.created_at,
 });
 
 export function EventProvider({ children }: { children: ReactNode }) {
@@ -268,8 +274,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Spotlight & Slideshow
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
-  const [currentSlideIdx, setCurrentSlideIdx] = useState<number>(0);
-  const [isSlideshowPlaying, setIsSlideshowPlaying] = useState<boolean>(true);
 
   // Reactions, Toasts, ZIP Modal
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
@@ -326,10 +330,20 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const bestClockSampleMsRef = useRef(Infinity);
+
   // Everyone else gets one event at a time, by its PIN or id
   const loadEvent = useCallback(async (code: string): Promise<EventItem | null> => {
     if (!isSupabaseConfigured()) return null;
+    const startedAt = Date.now();
     const { data, error } = await supabase.rpc('get_event_for_guest', { p_code: code });
+    const finishedAt = Date.now();
+    // Keep the measurement from the fastest response, as it's the most accurate
+    if (data?.server_now && finishedAt - startedAt < bestClockSampleMsRef.current) {
+      bestClockSampleMsRef.current = finishedAt - startedAt;
+      setClockOffsetMs(new Date(data.server_now).getTime() + (finishedAt - startedAt) / 2 - finishedAt);
+    }
     if (error) {
       console.warn('Error loading event:', error);
       return null;
@@ -762,7 +776,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     (m) => !m.eventId || m.eventId === currentEvent.id
   );
 
-  const publicMemories = eventMemories.filter((m) => !m.isPrivate);
+  // Newest first in the same order on every screen, which the shared slideshow depends on
+  const publicMemories = eventMemories
+    .filter((m) => !m.isPrivate)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '') || a.id.localeCompare(b.id));
   const privateMemories = eventMemories.filter((m) => m.isPrivate);
 
   // Live Voting round, derived from the event row (kept in sync for everyone via Realtime)
@@ -814,14 +831,59 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const canVoteOn = (memory: MemoryItem) =>
     votingRound.isActive && !memory.isPrivate && memory.promptId === votingRound.promptId;
 
-  // Slideshow auto-advance
+  // Shared slideshow: every screen works out the same position from the server's clock, so a playing
+  // slideshow stays in step with no messages. Only the host's skip and pause change the event.
+  const slideshowPaused = Boolean(currentEvent.slideshowPaused);
+  const isSlideshowPlaying = !slideshowPaused;
+  const slideAnchorIndex = currentEvent.slideshowAnchorIndex || 0;
+  const slideAnchorMs = currentEvent.slideshowAnchorAt ? new Date(currentEvent.slideshowAnchorAt).getTime() : 0;
+  const computeSlidePosition = useCallback(
+    () =>
+      slideshowPaused
+        ? slideAnchorIndex
+        : slideAnchorIndex + Math.floor((Date.now() + clockOffsetMs - slideAnchorMs) / SLIDE_MS),
+    [slideshowPaused, slideAnchorIndex, slideAnchorMs, clockOffsetMs]
+  );
+  const [slidePosition, setSlidePosition] = useState(0);
+  const slideCount = publicMemories.length;
   useEffect(() => {
-    if (!isSlideshowPlaying || publicMemories.length === 0) return;
-    const interval = setInterval(() => {
-      setCurrentSlideIdx((prev) => (prev + 1) % publicMemories.length);
-    }, 5500);
-    return () => clearInterval(interval);
-  }, [isSlideshowPlaying, publicMemories.length]);
+    setSlidePosition(computeSlidePosition());
+    if (slideshowPaused || slideCount === 0) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      // Wake exactly when the next slide is due, rather than counting from when this screen opened
+      const intoSlide = ((Date.now() + clockOffsetMs - slideAnchorMs) % SLIDE_MS + SLIDE_MS) % SLIDE_MS;
+      timer = setTimeout(() => {
+        setSlidePosition(computeSlidePosition());
+        scheduleNext();
+      }, SLIDE_MS - intoSlide + 5);
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, [computeSlidePosition, slideshowPaused, slideCount, clockOffsetMs, slideAnchorMs]);
+  const currentSlideIdx = slideCount > 0 ? ((slidePosition % slideCount) + slideCount) % slideCount : 0;
+
+  // Host only: save a new position (the database's rules refuse anyone else, and it reaches every screen)
+  const saveSlideshow = (position: number, paused: boolean) => {
+    const anchorAt = new Date(Date.now() + clockOffsetMs).toISOString();
+    const anchorIndex = slideCount > 0 ? ((position % slideCount) + slideCount) % slideCount : 0;
+    const patch = { slideshowAnchorAt: anchorAt, slideshowAnchorIndex: anchorIndex, slideshowPaused: paused };
+    setEvents((prev) => prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, ...patch } : ev)));
+    if (!isSupabaseConfigured() || !isUuid(currentEvent.id)) return;
+    supabase
+      .from('events')
+      .update({ slideshow_anchor_at: anchorAt, slideshow_anchor_index: anchorIndex, slideshow_paused: paused })
+      .eq('id', currentEvent.id)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('Slideshow update error:', error);
+          triggerToast('Could not update the slideshow', error.message);
+          if (hostUser) fetchHostEvents(hostUser.id);
+        }
+      });
+  };
+
+  const toggleSlideshowPlaying = () => saveSlideshow(computeSlidePosition(), isSlideshowPlaying);
 
   const activeSlideMemory =
     eventMemories.find((m) => m.id === spotlightId && !m.isPrivate) ||
@@ -1721,7 +1783,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   // Unpins the spotlight on every screen (synced via the database) and resumes auto-play
   const resumeSlideshow = async () => {
     setSpotlightId(null);
-    setIsSlideshowPlaying(true);
+    saveSlideshow(computeSlidePosition(), false);
     triggerToast('Slideshow resumed', 'Live screens are rolling through memories again');
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
@@ -1738,17 +1800,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   const cycleNextSlide = () => {
-    if (spotlightId) {
-      // Advancing from a pinned photo also releases it on every screen
-      resumeSlideshow();
-    }
-    setCurrentSlideIdx((prev) => (prev + 1) % Math.max(1, publicMemories.length));
+    // Advancing from a pinned photo also releases it on every screen
+    if (spotlightId) resumeSlideshow();
+    saveSlideshow(computeSlidePosition() + 1, slideshowPaused);
     triggerToast('Advanced to next memory on live screen');
   };
 
   const cyclePrevSlide = () => {
-    setSpotlightId(null);
-    setCurrentSlideIdx((prev) => (prev - 1 + Math.max(1, publicMemories.length)) % Math.max(1, publicMemories.length));
+    if (spotlightId) resumeSlideshow();
+    saveSlideshow(computeSlidePosition() - 1, slideshowPaused);
   };
 
   const togglePrivacy = async (memoryId: string) => {
@@ -1896,9 +1956,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
         spotlightId,
         setSpotlightId,
         currentSlideIdx,
-        setCurrentSlideIdx,
         isSlideshowPlaying,
-        setIsSlideshowPlaying,
+        toggleSlideshowPlaying,
         activeSlideMemory,
         cycleNextSlide,
         cyclePrevSlide,

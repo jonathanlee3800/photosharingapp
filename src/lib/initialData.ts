@@ -12,6 +12,7 @@ export interface MemoryItem {
   votes: number;
   votedByMe?: boolean;
   timestamp: string;
+  createdAt?: string;
 }
 
 export interface PromptItem {
@@ -46,6 +47,10 @@ export interface EventItem {
   votingClosedAt?: string | null;
   // The live round's total votes (guests and the projector never get per-photo votes during a round)
   roundVoteTotal?: number;
+  // Shared slideshow position: every screen works out the current slide from these and the server's clock
+  slideshowAnchorAt?: string | null;
+  slideshowAnchorIndex?: number;
+  slideshowPaused?: boolean;
 }
 
 export interface HostUser {

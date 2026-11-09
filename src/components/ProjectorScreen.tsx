@@ -56,9 +56,7 @@ export default function ProjectorScreen({
   const handleReaction = propOnReaction ?? eventContext.sendReaction;
   const handleNextSlide = propOnNextSlide ?? eventContext.cycleNextSlide;
   const isPlaying = propIsPlaying ?? eventContext.isSlideshowPlaying;
-  const handleTogglePlay =
-    propOnTogglePlay ??
-    (() => eventContext.setIsSlideshowPlaying((p) => !p));
+  const handleTogglePlay = propOnTogglePlay ?? eventContext.toggleSlideshowPlaying;
 
   const [qrDataUrl, setQrDataUrl] = useState('');
   // Site address shown on screen for typing the PIN ("yoursite.com/join"); set on the client
