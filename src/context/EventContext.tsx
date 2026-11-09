@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import {
   INITIAL_MEMORIES,
@@ -20,6 +22,7 @@ import {
   mediaUrlFromKey,
   uploadMediaToR2,
 } from '@/lib/mediaUpload';
+import { reactionsChannelName, sendReactionToProjector } from '@/lib/reactions';
 
 export interface FloatingEmoji {
   id: number;
@@ -69,6 +72,8 @@ interface EventContextType {
   hostEvents: EventItem[];
   currentEvent: EventItem;
   getEventById: (idOrCode: string) => EventItem | undefined;
+  // Fetches one event by PIN or id and makes it the current event; null if there's no such event
+  lookupEvent: (code: string) => Promise<EventItem | null>;
   setCurrentEventId: (id: string, silent?: boolean) => void;
   createEvent: (data: {
     id?: string;
@@ -124,6 +129,7 @@ interface EventContextType {
   togglePrivacy: (memoryId: string) => Promise<void>;
   toggleSpotlight: (memoryId: string) => Promise<void>;
   resumeSlideshow: () => Promise<void>;
+  refreshPosts: () => Promise<void>;
   deleteMemory: (memoryId: string) => Promise<void>;
   deleteMultipleMemories: (ids: string[]) => Promise<void>;
 
@@ -162,16 +168,16 @@ interface EventContextType {
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
-const STORAGE_KEY_EVENTS = 'withlove_events_v2';
+const STORAGE_KEY_EVENTS = 'withlove_events_v3';
 const STORAGE_KEY_CURRENT_EVENT_ID = 'withlove_current_event_id';
-const STORAGE_KEY_MEMORIES = 'withlove_memories_v2';
+const STORAGE_KEY_MEMORIES = 'withlove_memories_v3';
 const STORAGE_KEY_GUEST = 'withlove_guest_name';
 const STORAGE_KEY_GUEST_ID = 'withlove_guest_id';
 // Legacy cached host session; no longer trusted, only cleared on load
 const STORAGE_KEY_HOST_AUTH = 'withlove_host_user_auth';
 const STORAGE_KEY_REACTIONS = 'withlove_reactions_count';
 
-// Minimum gap between emoji broadcasts from one screen (taps in between still show locally)
+// Minimum gap between emoji sends from one screen (taps in between still show locally)
 const REACTION_BROADCAST_GAP_MS = 150;
 
 const isUuid = (str?: string): boolean => {
@@ -189,6 +195,39 @@ const toHostUser = (user: any): HostUser => ({
   email: user.email || '',
   avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
 });
+
+const DEFAULT_COVER_URL =
+  'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85';
+
+// Converts an event (a host's row, or what guests get from get_event_for_guest) into an EventItem
+const mapDbEvent = (e: any): EventItem => ({
+  id: e.id,
+  title: e.title,
+  date: e.date || '24 May 2026',
+  venue: e.venue || '',
+  code: e.join_code,
+  slug: e.slug || e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+  coverUrl: e.cover_url || DEFAULT_COVER_URL,
+  prompts:
+    e.prompts && e.prompts.length > 0
+      ? e.prompts.map((p: any) => ({ id: p.id, label: p.label, icon: p.icon || '🌿' }))
+      : INITIAL_PROMPTS,
+  votingPromptId: e.voting_prompt_id || '',
+  createdAt: e.created_at,
+  ownerId: e.owner_id,
+  votingOpen: Boolean(e.voting_open),
+  votingEndsAt: e.voting_ends_at || null,
+  votingClosedAt: e.voting_closed_at || null,
+  roundVoteTotal: Number(e.round_vote_total) || 0,
+});
+
+// Adds or refreshes one event, keeping the owner id (only a host's own query includes it) and dropping the sample event
+const mergeEvent = (events: EventItem[], incoming: EventItem): EventItem[] => {
+  const existing = events.find((e) => e.id === incoming.id);
+  const merged = { ...incoming, ownerId: incoming.ownerId ?? existing?.ownerId };
+  const others = events.filter((e) => e.id !== incoming.id && e.id !== INITIAL_EVENTS[0].id);
+  return [merged, ...others];
+};
 
 // Converts a `posts` row (from a query or a realtime payload) into a MemoryItem
 const mapDbPost = (p: any): MemoryItem => ({
@@ -234,9 +273,19 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Reactions, Toasts, ZIP Modal
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+  const pathname = usePathname() || '';
+  const isProjectorScreen = pathname.endsWith('/projector');
+  const isGuestArea = pathname.startsWith('/user');
+  // Supabase bills one message per subscribed client, shown or not, so each screen subscribes only to what it displays.
+  // Only pages showing the photo feed subscribe to it; the guest home and upload pages don't.
+  // Round start and close reach every guest page on a separate channel.
+  const showsPostFeed = /\/(gallery|vote|slideshow|projector)$/.test(pathname);
+  // Only the host dashboard gets per-photo votes live. The projector gets just the round's total, and
+  // guests get per-photo votes when the round ends.
+  const isHostDashboard = Boolean(hostUser) && !isProjectorScreen;
   const lastReactionSentRef = useRef(0);
 
-  // Floats an emoji up the screen for ~2.6s (used for local taps and ones broadcast by others)
+  // Floats an emoji up the screen for ~2.6s (the sender's own taps, and everyone's on the projector)
   const showFloatingEmoji = useCallback((emoji: string) => {
     const id = Date.now() + Math.random();
     const left = Math.floor(Math.random() * 70) + 15;
@@ -252,43 +301,24 @@ export function EventProvider({ children }: { children: ReactNode }) {
     setToast({ title, subtitle, id: Date.now() });
   }, []);
 
-  // Fetch Events from Supabase
-  const fetchEventsFromDb = useCallback(async () => {
+  // A host loads only their own events
+  const fetchHostEvents = useCallback(async (ownerId: string) => {
     if (!isSupabaseConfigured()) return;
     try {
-      const { data: dbEvents, error } = await supabase
+      const { data, error } = await supabase
         .from('events')
-        .select('*, prompts(*)');
-
+        .select('*, prompts(*)')
+        .eq('owner_id', ownerId);
       if (error) {
         console.warn('Error fetching events from Supabase:', error);
         return;
       }
-
-      if (dbEvents && dbEvents.length > 0) {
-        const mapped: EventItem[] = dbEvents.map((e: any) => ({
-          id: e.id,
-          title: e.title,
-          date: e.date || '24 May 2026',
-          venue: e.venue || '',
-          code: e.join_code,
-          slug: e.slug || e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          coverUrl:
-            e.cover_url ||
-            'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
-          prompts:
-            e.prompts && e.prompts.length > 0
-              ? e.prompts.map((p: any) => ({ id: p.id, label: p.label, icon: p.icon || '🌿' }))
-              : INITIAL_PROMPTS,
-          votingPromptId: e.voting_prompt_id || '',
-          createdAt: e.created_at,
-          ownerId: e.owner_id,
-          votingOpen: Boolean(e.voting_open),
-          votingEndsAt: e.voting_ends_at || null,
-          votingClosedAt: e.voting_closed_at || null,
-        }));
-        setEvents(mapped);
-      }
+      const mapped: EventItem[] = (data || []).map(mapDbEvent);
+      const ownIds = new Set(mapped.map((e) => e.id));
+      setEvents((prev) => [
+        ...mapped,
+        ...prev.filter((e) => !ownIds.has(e.id) && e.ownerId !== ownerId && e.id !== INITIAL_EVENTS[0].id),
+      ]);
     } catch (err) {
       console.warn('Error fetching events from Supabase:', err);
     } finally {
@@ -296,24 +326,67 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Everyone else gets one event at a time, by its PIN or id
+  const loadEvent = useCallback(async (code: string): Promise<EventItem | null> => {
+    if (!isSupabaseConfigured()) return null;
+    const { data, error } = await supabase.rpc('get_event_for_guest', { p_code: code });
+    if (error) {
+      console.warn('Error loading event:', error);
+      return null;
+    }
+    if (!data) {
+      // No such event any more: don't keep showing a cached copy
+      setEvents((prev) => prev.filter((e) => e.code !== code && e.id !== code));
+      return null;
+    }
+    const event = mapDbEvent(data);
+    setEvents((prev) => mergeEvent(prev, event));
+    return event;
+  }, []);
+
+  const lookupEvent = useCallback(
+    async (code: string) => {
+      const event = await loadEvent(code);
+      if (event) setCurrentEventIdState(event.id);
+      setEventsLoaded(true);
+      return event;
+    },
+    [loadEvent]
+  );
+
   // Identity used for "one vote per person per post": the host's auth id, else this browser's guest id
   const voterIdRef = useRef('');
   voterIdRef.current = hostUser?.id || guestId;
 
   // Fetch one event's posts and replace that event's slice of the cache (other events stay cached).
   // Cached posts render immediately; this refresh swaps in the latest rows (stale-while-revalidate).
-  const fetchPostsForEvent = useCallback(async (eventId: string) => {
-    if (!isSupabaseConfigured() || !isUuid(eventId)) return;
+  // Returns true if per-photo votes were withheld because the round is still live.
+  const isHostDashboardRef = useRef(false);
+  isHostDashboardRef.current = isHostDashboard;
+  const fetchPostsForEvent = useCallback(async (eventId: string): Promise<boolean> => {
+    if (!isSupabaseConfigured() || !isUuid(eventId)) return false;
     try {
-      const { data: dbPosts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('Error fetching posts from Supabase:', error);
-        return;
+      let dbPosts: any[] = [];
+      let votesHidden = false;
+      if (isHostDashboardRef.current) {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('event_id', eventId)
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.warn('Error fetching posts from Supabase:', error);
+          return false;
+        }
+        dbPosts = data || [];
+      } else {
+        const { data, error } = await supabase.rpc('get_event_posts', { p_event_id: eventId });
+        if (error) {
+          console.warn('Error fetching posts from Supabase:', error);
+          return false;
+        }
+        dbPosts = data?.posts || [];
+        votesHidden = Boolean(data?.votes_hidden);
       }
 
       // Which of these posts this voter has already voted for (one vote per person per post)
@@ -334,8 +407,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }));
       setMemories((prev) => [...mapped, ...prev.filter((m) => m.eventId !== eventId)]);
       setSpotlightId((dbPosts || []).find((p: any) => p.is_spotlight)?.id ?? null);
+      return votesHidden;
     } catch (err) {
       console.warn('Error fetching posts from Supabase:', err);
+      return false;
     }
   }, []);
 
@@ -345,6 +420,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
     try {
       // Host identity now comes only from Supabase Auth; drop any stale cached copy
       localStorage.removeItem(STORAGE_KEY_HOST_AUTH);
+      // Older versions cached every host's events and posts on each phone
+      localStorage.removeItem('withlove_events_v2');
+      localStorage.removeItem('withlove_memories_v2');
 
       const savedEvents = localStorage.getItem(STORAGE_KEY_EVENTS);
       if (savedEvents) {
@@ -414,49 +492,38 @@ export function EventProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
 
-    // Pull events from DB (posts are loaded per event when it is opened)
-    fetchEventsFromDb();
-
-    // Set up Real-time Live Synchronization Channel (posts are handled per event below)
-    const channel = supabase
-      .channel('realtime-photosharing-v1')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events' },
-        () => {
-          fetchEventsFromDb();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'prompts' },
-        () => {
-          fetchEventsFromDb();
-        }
-      )
-      .subscribe((status) => {
-        // (Re)connected: re-fetch so changes missed while offline (e.g. a round closing) are picked up
-        if (status === 'SUBSCRIBED') fetchEventsFromDb();
-      });
-
     return () => {
       subscription?.unsubscribe();
-      supabase.removeChannel(channel);
     };
-  }, [fetchEventsFromDb]);
+  }, []);
+
+  // A logged-in host loads their own events; guest pages load theirs by PIN (see lookupEvent)
+  const hostUserId = hostUser?.id;
+  useEffect(() => {
+    if (!isSupabaseConfigured() || isAuthLoading) return;
+    if (hostUserId) {
+      fetchHostEvents(hostUserId);
+      return;
+    }
+    // Signed out: don't keep a host's events on this device
+    setEvents((prev) => prev.filter((e) => !e.ownerId));
+    if (!isGuestArea) setEventsLoaded(true);
+  }, [hostUserId, isAuthLoading, isGuestArea, fetchHostEvents]);
 
   // Phones pause the live connection while the screen is locked or the browser is in the background.
   // When the guest comes back, re-fetch so anything missed (new photos, a round opening or closing) shows up.
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
     const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      fetchEventsFromDb();
-      if (isUuid(currentEventId)) fetchPostsForEvent(currentEventId);
+      if (document.visibilityState !== 'visible' || !isUuid(currentEventId)) return;
+      if (currentEventId === INITIAL_EVENTS[0].id) return;
+      if (!isGuestArea && !hostUserId) return;
+      loadEvent(currentEventId);
+      fetchPostsForEvent(currentEventId);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [fetchEventsFromDb, fetchPostsForEvent, currentEventId]);
+  }, [loadEvent, fetchPostsForEvent, currentEventId, isGuestArea, hostUserId]);
 
   // Save to LocalStorage
   useEffect(() => {
@@ -519,12 +586,57 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   // Live uploads for the current event: apply each change in place instead of refetching everything
-  const eventChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isRealEvent = currentEvent.id !== INITIAL_EVENTS[0].id && isUuid(currentEvent.id);
+  const watchesCurrentEvent = isRealEvent && (isGuestArea || Boolean(hostUserId));
+
+  // Round start/close and event details, for this event only. Applied from the message itself,
+  // so nobody re-downloads anything. On (re)connect, catch up on what was missed.
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !watchesCurrentEvent) return;
+    const eventId = currentEvent.id;
+    const channel = supabase
+      .channel(`event-updates-${eventId}`)
+      .on('broadcast', { event: 'event-updated' }, ({ payload }) => {
+        if (payload?.id === eventId) setEvents((prev) => mergeEvent(prev, mapDbEvent(payload)));
+      })
+      .on('broadcast', { event: 'event-deleted' }, ({ payload }) => {
+        if (payload?.id === eventId) loadEvent(eventId);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') loadEvent(eventId);
+      });
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [watchesCurrentEvent, currentEvent.id, loadEvent]);
+
+  // The projector's running total. The message only ever holds the total, never per-photo votes.
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !isProjectorScreen || !isRealEvent) return;
+    const eventId = currentEvent.id;
+    const channel = supabase
+      .channel(`event-votes-${eventId}`)
+      .on('broadcast', { event: 'round-total' }, ({ payload }) => {
+        const total = Number(payload?.total);
+        if (Number.isFinite(total)) {
+          setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, roundVoteTotal: total } : e)));
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isProjectorScreen, isRealEvent, currentEvent.id]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured() || !isUuid(currentEvent.id)) return;
+    if (!isSupabaseConfigured() || !isRealEvent) return;
     const eventId = currentEvent.id;
-    const isHost = Boolean(hostUser);
+
+    // No live photo feed on this page: load the posts once (the round pop-ups still need them)
+    if (!isHostDashboard && !showsPostFeed) {
+      if (isGuestArea) fetchPostsForEvent(eventId);
+      return;
+    }
 
     const upsertPost = (row: any) => {
       // Postgres leaves large unchanged (TOASTed) columns out of UPDATE payloads, e.g. legacy
@@ -547,6 +659,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
                 ...incoming,
                 url: urlMissing ? m.url : incoming.url,
                 caption: row.caption === undefined ? m.caption : incoming.caption,
+                // Feed messages carry no votes, so a missing count means "unchanged"
+                votes: row.votes_count === undefined ? m.votes : incoming.votes,
                 // Keep this viewer's own vote state
                 votedByMe: m.votedByMe,
               }
@@ -576,55 +690,72 @@ export function EventProvider({ children }: { children: ReactNode }) {
       setSpotlightId((current) => (current === id ? null : current));
     };
 
-    const channel = supabase
-      .channel(`event-${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'posts', filter: `event_id=eq.${eventId}` },
-        (payload) => upsertPost(payload.new)
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'posts', filter: `event_id=eq.${eventId}` },
-        (payload) => upsertPost(payload.new)
-      )
-      .on(
-        // DELETE payloads only carry the id (and cannot be filtered), so remove by id
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'posts' },
-        (payload) => {
-          if ((payload.old as any)?.id) removePost((payload.old as any).id);
-        }
-      )
-      .on(
-        // Guests stop receiving a post once it turns private, so the host announces it directly
-        'broadcast',
-        { event: 'post-hidden' },
-        ({ payload }) => {
-          if (!isHost && payload?.id) removePost(payload.id);
-        }
-      )
-      .on(
-        // Emoji taps from other screens on this event (the sender already showed its own)
-        'broadcast',
-        { event: 'reaction' },
-        ({ payload }) => {
-          const emoji = payload?.emoji;
-          if (typeof emoji === 'string' && emoji.length > 0 && emoji.length <= 8) showFloatingEmoji(emoji);
-        }
-      )
+    // The host dashboard reads its own rows live, including private photos and every vote
+    if (isHostDashboard) {
+      const hostChannel = supabase
+        .channel(`event-host-${eventId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'posts', filter: `event_id=eq.${eventId}` },
+          (payload) => upsertPost(payload.new)
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'posts', filter: `event_id=eq.${eventId}` },
+          (payload) => upsertPost(payload.new)
+        )
+        .on(
+          // DELETE payloads only carry the id (and cannot be filtered), so remove by id
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'posts' },
+          (payload) => {
+            if ((payload.old as any)?.id) removePost((payload.old as any).id);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') fetchPostsForEvent(eventId);
+        });
+      return () => {
+        supabase.removeChannel(hostChannel);
+      };
+    }
+
+    // Everyone else gets this event's photo feed from the database, with no votes in it.
+    // Photos always load from our own storage (from storage_key), never from an address in the message.
+    const applyFeedPost = (row: any) => {
+      if (row?.event_id === eventId && row?.storage_key) upsertPost(row);
+    };
+    const feedChannel = supabase
+      .channel(`event-feed-${eventId}`)
+      .on('broadcast', { event: 'post-added' }, ({ payload }) => applyFeedPost(payload))
+      .on('broadcast', { event: 'post-changed' }, ({ payload }) => applyFeedPost(payload))
+      .on('broadcast', { event: 'post-removed' }, ({ payload }) => {
+        if (payload?.id) removePost(payload.id);
+      })
       .subscribe((status) => {
         // Load (or refresh) this event's posts once live updates are flowing, so nothing is missed
         // between the fetch and the subscription. Also re-syncs after a dropped connection reconnects.
         if (status === 'SUBSCRIBED') fetchPostsForEvent(eventId);
       });
-
-    eventChannelRef.current = channel;
     return () => {
-      eventChannelRef.current = null;
+      supabase.removeChannel(feedChannel);
+    };
+  }, [isRealEvent, currentEvent.id, isHostDashboard, showsPostFeed, isGuestArea, fetchPostsForEvent]);
+
+  // Only the projector listens for emoji reactions; guest phones never join this channel (see lib/reactions)
+  useEffect(() => {
+    if (!isProjectorScreen || !isSupabaseConfigured() || !isUuid(currentEvent.id)) return;
+    const channel = supabase
+      .channel(reactionsChannelName(currentEvent.id))
+      .on('broadcast', { event: 'reaction' }, ({ payload }) => {
+        const emoji = payload?.emoji;
+        if (typeof emoji === 'string' && emoji.length > 0 && emoji.length <= 8) showFloatingEmoji(emoji);
+      })
+      .subscribe();
+    return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentEvent.id, hostUser?.id, fetchPostsForEvent, showFloatingEmoji]);
+  }, [isProjectorScreen, currentEvent.id, showFloatingEmoji]);
 
   // Filter memories for the current event
   const eventMemories = memories.filter(
@@ -647,14 +778,37 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const secondsLeft = votingEndsAt
     ? Math.max(0, Math.ceil((new Date(votingEndsAt).getTime() - nowMs) / 1000))
     : null;
+  // A timed round closes itself when its timer runs out, with no host action or database write needed:
+  // every screen works it out from the saved end time, and the server already refuses late votes.
+  const timerRanOut = Boolean(currentEvent.votingOpen) && secondsLeft === 0;
+  const roundIsOpen = Boolean(currentEvent.votingOpen) && !timerRanOut;
   const votingRound: VotingRound = {
-    isOpen: Boolean(currentEvent.votingOpen),
-    isActive: Boolean(currentEvent.votingOpen) && (secondsLeft === null || secondsLeft > 0),
+    isOpen: roundIsOpen,
+    isActive: roundIsOpen,
     promptId: currentEvent.votingPromptId || prompts[0]?.id || '',
     endsAt: votingEndsAt,
     secondsLeft,
-    closedAt: currentEvent.votingClosedAt || null,
+    closedAt: currentEvent.votingClosedAt || (timerRanOut ? votingEndsAt : null),
   };
+
+  // Reloads the current event's posts, for moments that need exact numbers (the winner reveal)
+  // The server releases per-photo votes the moment the round ends. A phone whose clock runs slightly
+  // fast can ask a moment too early, so try again rather than showing "no votes".
+  const refreshPosts = useCallback(async () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const stillHidden = await fetchPostsForEvent(currentEvent.id);
+      if (!stillHidden) return;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }, [fetchPostsForEvent, currentEvent.id]);
+
+  // The projector goes back to each photo's own votes when a round ends, so get them
+  const roundClosedAt = votingRound.closedAt;
+  useEffect(() => {
+    if (!isProjectorScreen || !roundClosedAt) return;
+    const timer = setTimeout(refreshPosts, 1500);
+    return () => clearTimeout(timer);
+  }, [isProjectorScreen, roundClosedAt, refreshPosts]);
 
   // Votes are only allowed on photos in the live round's category
   const canVoteOn = (memory: MemoryItem) =>
@@ -841,6 +995,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         : INITIAL_PROMPTS;
 
     let eventUuid = data.id && isUuid(data.id) ? data.id : generateUUID();
+    let finalCoverUrl = data.coverUrl || DEFAULT_COVER_URL;
 
     // Database Insert into Supabase 'events'
     if (isSupabaseConfigured() && hostUser) {
@@ -854,9 +1009,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
               date: data.date.trim() || '24 May 2026',
               venue: data.venue?.trim() || '',
               slug,
-              cover_url:
-                data.coverUrl ||
-                'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
+              // An uploaded cover is stored in R2 just below; the database only keeps its address
+              cover_url: data.coverUrl && !data.coverUrl.startsWith('data:') ? data.coverUrl : DEFAULT_COVER_URL,
               owner_id: hostUser.id,
             },
           ])
@@ -871,6 +1025,18 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         eventUuid = dbEvent.id;
         joinCode = dbEvent.join_code;
+        finalCoverUrl = dbEvent.cover_url;
+        if (data.coverUrl?.startsWith('data:')) {
+          try {
+            const stored = await uploadMediaToR2(data.coverUrl, eventUuid, generateUUID());
+            const { error: coverError } = await supabase.from('events').update({ cover_url: stored.url }).eq('id', eventUuid);
+            if (coverError) throw coverError;
+            finalCoverUrl = stored.url;
+          } catch (coverErr) {
+            console.warn('Cover upload failed:', coverErr);
+            triggerToast('Could not upload the cover image', 'Your event was created with the default cover');
+          }
+        }
         // Save the starter categories and use their real ids (so uploads are tagged with real categories)
         if (defaultPromptsList.length > 0) {
           const { data: savedPrompts, error: promptsError } = await supabase
@@ -901,9 +1067,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       venue: data.venue?.trim() || '',
       code: joinCode,
       slug,
-      coverUrl:
-        data.coverUrl ||
-        'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
+      coverUrl: finalCoverUrl,
       prompts: defaultPromptsList,
       votingPromptId: defaultPromptsList[0]?.id || '',
       createdAt: new Date().toISOString(),
@@ -928,7 +1092,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
         if (updates.title) payload.title = updates.title;
         if (updates.date) payload.date = updates.date;
         if (updates.venue) payload.venue = updates.venue;
-        if (updates.coverUrl) payload.cover_url = updates.coverUrl;
+        if (updates.coverUrl) {
+          payload.cover_url = updates.coverUrl.startsWith('data:')
+            ? (await uploadMediaToR2(updates.coverUrl, id, generateUUID())).url
+            : updates.coverUrl;
+        }
         if (updates.votingPromptId) payload.voting_prompt_id = updates.votingPromptId;
         await supabase.from('events').update(payload).eq('id', id);
       } catch (e) {
@@ -1082,7 +1250,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.warn('startVotingRound error:', error);
         triggerToast('Could not start the round', error.message);
-        fetchEventsFromDb();
+        if (hostUser) fetchHostEvents(hostUser.id);
       }
     }
   };
@@ -1114,7 +1282,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.warn('closeVotingRound error:', error);
         triggerToast('Could not close the round', error.message);
-        fetchEventsFromDb();
+        if (hostUser) fetchHostEvents(hostUser.id);
       }
     }
     return winner && winner.votes > 0 ? winner : null;
@@ -1189,12 +1357,18 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     showFloatingEmoji(emoji);
 
-    // Share the tap live with every screen on this event (projector, slideshow, other guests).
-    // Broadcast skips the database; throttled so rapid tapping can't flood the channel.
+    // Everyone else's phone stays quiet: the tap goes to the projector only (the sender already showed it above).
+    // A tap on the projector itself is already on screen, so nothing needs sending.
+    // Throttled so rapid tapping can't flood the channel.
     const now = Date.now();
-    if (eventChannelRef.current && now - lastReactionSentRef.current >= REACTION_BROADCAST_GAP_MS) {
+    if (
+      !isProjectorScreen &&
+      isSupabaseConfigured() &&
+      isUuid(currentEvent.id) &&
+      now - lastReactionSentRef.current >= REACTION_BROADCAST_GAP_MS
+    ) {
       lastReactionSentRef.current = now;
-      eventChannelRef.current.send({ type: 'broadcast', event: 'reaction', payload: { emoji } });
+      sendReactionToProjector(currentEvent.id, emoji);
     }
 
     // Record reaction in Supabase
@@ -1268,7 +1442,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
         'Visible only to hosts in Host Admin — hidden from public screens'
       );
     } else {
-      sendReaction('✨');
       triggerToast(
         `New ${created.type} shared to Live Gallery & Projector`,
         `Tagged under "${getPrompt(created.promptId).label}"`
@@ -1312,11 +1485,16 @@ export function EventProvider({ children }: { children: ReactNode }) {
         if (dbError) {
           console.error('Supabase posts insert error:', dbError);
           triggerToast('Database sync notice', dbError.message);
+          return;
         }
       } catch (err) {
         console.error('addMemory Supabase error:', err);
+        return;
       }
     }
+
+    // Only now is the photo really there for the projector to celebrate
+    if (!created.isPrivate) sendReaction('✨');
   };
 
   const addMultipleMemories = async (entries: Array<{
@@ -1365,10 +1543,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const hasPrivate = createdList.some((c) => c.isPrivate);
     const hasPublic = createdList.some((c) => !c.isPrivate);
 
-    if (hasPublic) {
-      sendReaction('✨');
-    }
-
     if (hasPrivate && !hasPublic) {
       triggerToast(
         `Saved ${createdList.length} items to Couple’s Private Vault`,
@@ -1405,7 +1579,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     // Insert batch into Supabase
     if (isSupabaseConfigured() && uploadedList.length > 0) {
       try {
-        await supabase.from('posts').insert(
+        const { error: dbError } = await supabase.from('posts').insert(
           uploadedList.map((c) => ({
             id: c.id,
             event_id: eventIdVal,
@@ -1421,10 +1595,19 @@ export function EventProvider({ children }: { children: ReactNode }) {
             is_spotlight: false,
           }))
         );
+        if (dbError) {
+          console.error('Supabase posts insert error:', dbError);
+          triggerToast('Database sync notice', dbError.message);
+          return;
+        }
       } catch (err) {
         console.error('addMultipleMemories Supabase error:', err);
+        return;
       }
     }
+
+    // Only now are the photos really there for the projector to celebrate
+    if (uploadedList.some((c) => !c.isPrivate)) sendReaction('✨');
   };
 
   // Returns this browser's voter id, creating a guest id if a guest votes before joining
@@ -1487,7 +1670,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       triggerToast('Vote not saved', error?.message || 'Please check your connection and try again');
       return;
     }
-    applyVote(Boolean(data.voted), Number(data.votes) || 0);
+    setMemories((prev) => prev.map((m) => (m.id === memoryId ? { ...m, votedByMe: Boolean(data.voted) } : m)));
     // Any photo the server moved the vote away from is no longer "voted by me"
     const movedFrom: string[] = Array.isArray(data.moved_from) ? data.moved_from : [];
     if (movedFrom.length > 0) {
@@ -1591,9 +1774,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
         await supabase.from('posts').update({ is_private: nextPriv }).eq('id', memoryId);
-        if (nextPriv) {
-          eventChannelRef.current?.send({ type: 'broadcast', event: 'post-hidden', payload: { id: memoryId } });
-        }
       } catch (e) {
         console.warn('togglePrivacy db error:', e);
       }
@@ -1683,6 +1863,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         hostEvents,
         currentEvent,
         getEventById,
+        lookupEvent,
         setCurrentEventId,
         createEvent,
         updateEvent,
@@ -1709,6 +1890,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         togglePrivacy,
         toggleSpotlight,
         resumeSlideshow,
+        refreshPosts,
         deleteMemory,
         deleteMultipleMemories,
         spotlightId,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
@@ -13,9 +13,22 @@ export default function UserEventLayout({
   const params = useParams();
   const rawEventId =
     typeof params?.eventId === 'string' ? decodeURIComponent(params.eventId) : '';
-  const { getEventById, currentEvent, setCurrentEventId, eventsLoaded } = useEvent();
+  const { getEventById, currentEvent, setCurrentEventId, lookupEvent } = useEvent();
+  const [checkedCode, setCheckedCode] = useState('');
 
   const matchedEvent = rawEventId ? getEventById(rawEventId) : undefined;
+
+  // Fetch this one event by its PIN (from the QR code or link); a cached copy shows meanwhile
+  useEffect(() => {
+    if (!rawEventId) return;
+    let cancelled = false;
+    lookupEvent(rawEventId).finally(() => {
+      if (!cancelled) setCheckedCode(rawEventId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [rawEventId, lookupEvent]);
 
   useEffect(() => {
     if (matchedEvent && currentEvent.id !== matchedEvent.id) {
@@ -23,8 +36,8 @@ export default function UserEventLayout({
     }
   }, [matchedEvent, currentEvent.id, setCurrentEventId]);
 
-  // A fresh phone (e.g. scanning the QR code) has no cached events yet, so wait for the database
-  if (!matchedEvent && !eventsLoaded) {
+  // A fresh phone (e.g. scanning the QR code) has nothing cached yet, so wait for the database
+  if (!matchedEvent && checkedCode !== rawEventId) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-[#2D4A3A]" />

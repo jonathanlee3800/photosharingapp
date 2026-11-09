@@ -19,7 +19,7 @@ export default function EnterPinPage() {
 function EnterPin() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { getEventById, eventsLoaded } = useEvent();
+  const { lookupEvent } = useEvent();
   const [pin, setPin] = useState(() => cleanPinInput(searchParams.get('pin') || ''));
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
@@ -27,20 +27,7 @@ function EnterPin() {
 
   const complete = pin.length === PIN_LENGTH;
 
-  // Look the PIN up once events have loaded (also covers a submit made while still loading)
-  useEffect(() => {
-    if (!checking || !eventsLoaded) return;
-    const event = getEventById(pin);
-    if (event) {
-      router.push(`/user/${event.code}`);
-    } else {
-      setChecking(false);
-      setError(`We couldn’t find an event with PIN ${formatPin(pin)}. Check the PIN and try again.`);
-      inputRef.current?.focus();
-    }
-  }, [checking, eventsLoaded, pin, getEventById, router]);
-
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!complete) {
       setError(`The PIN has ${PIN_LENGTH} digits.`);
@@ -48,6 +35,14 @@ function EnterPin() {
     }
     setError('');
     setChecking(true);
+    const event = await lookupEvent(pin);
+    if (event) {
+      router.push(`/user/${event.code}`);
+      return;
+    }
+    setChecking(false);
+    setError(`We couldn’t find an event with PIN ${formatPin(pin)}. Check the PIN and try again.`);
+    inputRef.current?.focus();
   };
 
   return (

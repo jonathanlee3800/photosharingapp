@@ -21,7 +21,7 @@ const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${Stri
  */
 export default function LiveRoundSheet() {
   const pathname = usePathname() || '';
-  const { votingRound, publicMemories, getPrompt, isHostLoggedIn, currentEvent, eventsLoaded } = useEvent();
+  const { votingRound, publicMemories, getPrompt, isHostLoggedIn, currentEvent, eventsLoaded, refreshPosts } = useEvent();
   const [open, setOpen] = useState(false);
   const wasActiveRef = useRef<boolean | null>(null);
   // The round this guest closed the announcement for (or already went to). In memory, so it resets on reload.
@@ -78,11 +78,18 @@ export default function LiveRoundSheet() {
       localStorage.setItem(seenKey, closedAt);
     } catch (e) {}
     setOpen(false);
-    setRevealPromptId(votingRound.promptId);
-    try {
-      navigator.vibrate?.([60, 40, 60]);
-    } catch (e) {}
-  }, [votingRound.isOpen, votingRound.closedAt, votingRound.promptId, isHostLoggedIn, eventsLoaded, currentEvent.id, pathname]);
+    // Guests don't receive every vote live, so fetch the final totals before ranking the winners.
+    // The wait lets last-second votes land when a timer runs out, and the random part
+    // stops every phone in the room asking at the same instant.
+    const promptId = votingRound.promptId;
+    setTimeout(async () => {
+      await refreshPosts();
+      setRevealPromptId(promptId);
+      try {
+        navigator.vibrate?.([60, 40, 60]);
+      } catch (e) {}
+    }, 1000 + Math.random() * 1500);
+  }, [votingRound.isOpen, votingRound.closedAt, votingRound.promptId, isHostLoggedIn, eventsLoaded, currentEvent.id, pathname, refreshPosts]);
 
   // Celebrate when the winners appear
   useEffect(() => {

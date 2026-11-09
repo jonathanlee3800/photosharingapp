@@ -42,7 +42,9 @@ export default function ProjectorScreen({
   fullscreenMode = true,
 }: ProjectorScreenProps) {
   const eventContext = useEvent();
-  const { currentEvent, isHostLoggedIn } = eventContext;
+  const { currentEvent, isHostLoggedIn, votingRound } = eventContext;
+  // During a live round only the running total shows; each photo's own votes stay hidden until the end
+  const roundTotalVotes = currentEvent.roundVoteTotal ?? 0;
   // Only the host may skip, pause or resume the slideshow; anyone else just watches
   const canControl = isHostLoggedIn;
 
@@ -234,10 +236,10 @@ export default function ProjectorScreen({
               onClick={() => handleReaction('❤️')}
             />
             <span className="text-3xl sm:text-4xl text-[#FAF8F5] font-medium">
-              {activeMemory.votes}
+              {votingRound.isActive ? roundTotalVotes : activeMemory.votes}
             </span>
             <span className="text-xs font-sans text-white/50 font-bold uppercase tracking-widest mt-1 ml-1">
-              little loves sent
+              {votingRound.isActive ? (roundTotalVotes === 1 ? 'total vote' : 'total votes') : 'little loves sent'}
             </span>
           </div>
 

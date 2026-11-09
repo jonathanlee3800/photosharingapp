@@ -44,6 +44,8 @@ export interface EventItem {
   votingEndsAt?: string | null;
   // When the host last closed a round (drives the winner reveal for guests who missed it live)
   votingClosedAt?: string | null;
+  // The live round's total votes (guests and the projector never get per-photo votes during a round)
+  roundVoteTotal?: number;
 }
 
 export interface HostUser {

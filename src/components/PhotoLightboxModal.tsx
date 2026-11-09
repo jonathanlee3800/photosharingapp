@@ -242,7 +242,7 @@ export default function PhotoLightboxModal({
                   memory.votedByMe ? 'fill-red-400 text-red-400 scale-110' : 'text-white'
                 }`}
               />
-              <span>{memory.votes} Loves</span>
+              <span>{memory.votedByMe ? 'Voted' : 'Vote'}</span>
             </button>
           )}
         </div>

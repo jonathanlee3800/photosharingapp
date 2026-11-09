@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { formatPin } from '@/lib/pin';
-import type { MemoryItem } from '@/lib/initialData';
 import HostAuthGuard from '@/components/HostAuthGuard';
 import HostEventHeader from '@/components/HostEventHeader';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -53,9 +52,8 @@ export default function HostOverviewPage() {
   const [promptIcon, setPromptIcon] = useState('📸');
   const [showAddPrompt, setShowAddPrompt] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
-  // Live round controls: chosen duration (minutes, 0 = no limit) and the last revealed winner
+  // Live round controls: chosen duration (minutes, 0 = no limit)
   const [roundMinutes, setRoundMinutes] = useState(5);
-  const [lastWinner, setLastWinner] = useState<MemoryItem | null>(null);
   const [roundBusy, setRoundBusy] = useState(false);
   const [roundPromptId, setRoundPromptId] = useState('');
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -85,6 +83,14 @@ export default function HostOverviewPage() {
   const roundDisplayPromptId = votingRound.isOpen ? votingRound.promptId : selectedRoundPromptId;
   const activeVotingPrompt =
     prompts.find((p) => p.id === roundDisplayPromptId) || prompts[0] || { id: 'default', label: 'Wedding Moments', icon: '🌿' };
+
+  // Winner of the last closed round, whether the host closed it or its timer ran out
+  const lastWinner =
+    !votingRound.isOpen && votingRound.closedAt
+      ? publicMemories
+          .filter((m) => m.promptId === votingRound.promptId && m.votes > 0)
+          .reduce<(typeof publicMemories)[number] | null>((best, m) => (!best || m.votes > best.votes ? m : best), null)
+      : null;
 
   // Live round stats for the round's category
   const votingCandidates = publicMemories.filter((m) => m.promptId === roundDisplayPromptId);
@@ -340,7 +346,7 @@ export default function HostOverviewPage() {
                   disabled={roundBusy}
                   onClick={async () => {
                     setRoundBusy(true);
-                    setLastWinner(await closeVotingRound());
+                    await closeVotingRound();
                     setRoundBusy(false);
                   }}
                   className="flex-1 py-3 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-60"
@@ -364,7 +370,6 @@ export default function HostOverviewPage() {
                     disabled={roundBusy}
                     onClick={async () => {
                       setRoundBusy(true);
-                      setLastWinner(null);
                       await startVotingRound(selectedRoundPromptId, roundMinutes || null);
                       setRoundBusy(false);
                     }}

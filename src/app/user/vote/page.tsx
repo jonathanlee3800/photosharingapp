@@ -18,14 +18,6 @@ export default function VotePage() {
   // (not re-sorted by votes, so photos don't jump around while people vote)
   const contenders = publicMemories.filter((m) => m.promptId === votingRound.promptId);
 
-  // Rank by votes for the badges (ties share a rank), without changing the display order
-  const rankOf = (votes: number) => 1 + contenders.filter((m) => m.votes > votes).length;
-
-  const leader = contenders.reduce<(typeof contenders)[number] | null>(
-    (best, m) => (m.votes > 0 && (!best || m.votes > best.votes) ? m : best),
-    null
-  );
-
   const handleVoteClick = (id: string, alreadyVoted?: boolean) => {
     toggleVote(id);
     if (alreadyVoted) return;
@@ -99,7 +91,6 @@ export default function VotePage() {
         ) : (
           <div className="pointer-events-auto glass border border-[#1C2820]/[0.08] rounded-full h-11 px-4 flex items-center gap-2 text-[14px] font-semibold text-[#1C2820]/70">
             <Lock className="w-4 h-4" /> Time’s up
-            {leader && <span className="font-normal text-[#1C2820]/50 truncate max-w-[45vw]">· {leader.guestName} leads</span>}
           </div>
         )}
       </div>
@@ -128,21 +119,6 @@ export default function VotePage() {
                 ) : (
                   <img src={item.url} alt={item.caption} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
                 )}
-                {(() => {
-                  const rank = rankOf(item.votes);
-                  return (
-                    <span
-                      className={`absolute top-3.5 left-3.5 h-8 min-w-8 px-2.5 rounded-full text-[13px] font-bold flex items-center justify-center ${
-                        rank === 1 && item.votes > 0 ? 'bg-[#F5C451] text-[#1C2820]' : 'bg-black/45 backdrop-blur-md text-white'
-                      }`}
-                    >
-                      #{rank}
-                    </span>
-                  );
-                })()}
-                <span className="absolute top-3.5 right-3.5 h-8 px-3 rounded-full bg-white/90 backdrop-blur-md text-[#1C2820] text-[13px] font-semibold flex items-center gap-1 tabular-nums">
-                  <Heart className="w-3.5 h-3.5 text-[#2D4A3A]" fill="currentColor" /> {item.votes}
-                </span>
               </div>
 
               <div className="p-4 space-y-3">

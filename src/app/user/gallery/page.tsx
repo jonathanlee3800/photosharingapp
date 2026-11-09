@@ -79,7 +79,6 @@ export default function GalleryPage() {
         } ${votable ? '' : 'opacity-60'}`}
       >
         <Heart className={variant === 'tile' ? 'w-3.5 h-3.5' : 'w-4 h-4'} fill={item.votedByMe ? 'currentColor' : 'none'} />
-        <span>{item.votes}</span>
       </button>
     );
   };

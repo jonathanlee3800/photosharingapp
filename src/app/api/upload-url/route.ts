@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   // Only allow uploads into events that actually exist
   const supabase = await createClient();
-  const { data: event } = await supabase.from('events').select('id').eq('id', eventId).maybeSingle();
+  const { data: event } = await supabase.rpc('get_event_for_guest', { p_code: eventId });
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
