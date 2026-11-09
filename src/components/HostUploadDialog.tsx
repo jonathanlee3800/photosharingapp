@@ -1,17 +1,27 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Upload, Loader2, ImagePlus, Film, Check, Lock } from 'lucide-react';
+import { X, Upload, Loader2, ImagePlus, Film, Check, Lock, Crop as CropIcon } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
+import PhotoCropDialog from '@/components/PhotoCropDialog';
 
 const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
 
 interface PickedFile {
+  id: number;
   file: File;
-  previewUrl: string | null; // null for HEIC (browsers can't preview it before conversion)
+  previewUrl: string | null; // null for HEIC until it has been converted to JPEG
   isVideo: boolean;
+  converting: boolean;
+  processedUrl?: string; // The converted photo, reused at upload so it isn't converted twice
 }
+
+const PHOTO_OPTIONS = { maxDimension: 2000, quality: 0.88 };
+
+const revokePreview = (p: PickedFile) => {
+  if (p.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(p.previewUrl);
+};
 
 /**
  * Host upload: pick photos/videos, choose a category, add an optional caption, then upload.
@@ -34,10 +44,17 @@ export default function HostUploadDialog({
   const [isPrivate, setIsPrivate] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState('');
+  const [croppingId, setCroppingId] = useState<number | null>(null);
+  const nextIdRef = useRef(0);
+  // HEIC is converted on the server, one file at a time so a big selection doesn't overload it
+  const conversionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pickedRef = useRef<PickedFile[]>([]);
+  pickedRef.current = picked;
 
   // Reset each time the dialog opens
   useEffect(() => {
     if (!open) return;
+    pickedRef.current.forEach(revokePreview);
     setPicked([]);
     setCaption('');
     setIsPrivate(false);
@@ -45,10 +62,8 @@ export default function HostUploadDialog({
     setPromptId(defaultPromptId && prompts.some((p) => p.id === defaultPromptId) ? defaultPromptId : prompts[0]?.id || '');
   }, [open]);
 
-  // Free preview URLs when files are removed or the dialog closes
-  useEffect(() => {
-    return () => picked.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
-  }, [picked]);
+  // Free preview URLs when the dialog goes away (removing a file frees its own)
+  useEffect(() => () => pickedRef.current.forEach(revokePreview), []);
 
   if (!open) return null;
 
@@ -61,12 +76,40 @@ export default function HostUploadDialog({
         skipped++;
         continue;
       }
-      next.push({ file, isVideo, previewUrl: !isVideo && isHeicFile(file) ? null : URL.createObjectURL(file) });
+      const needsConversion = !isVideo && isHeicFile(file);
+      next.push({
+        id: nextIdRef.current++,
+        file,
+        isVideo,
+        previewUrl: needsConversion ? null : URL.createObjectURL(file),
+        converting: needsConversion,
+      });
     }
     setPicked((prev) => [...prev, ...next]);
+    next.filter((p) => p.converting).forEach(convertForPreview);
     if (skipped > 0) {
       triggerToast(`${skipped} ${skipped === 1 ? 'file' : 'files'} skipped`, 'Only photos and videos under 15 MB can be uploaded');
     }
+  };
+
+  // Browsers can't reliably show HEIC, so convert it now and preview the JPEG. If that fails the
+  // placeholder stays, and upload tries the conversion again.
+  const convertForPreview = (item: PickedFile) => {
+    const update = (changes: Partial<PickedFile>) =>
+      setPicked((prev) => prev.map((p) => (p.id === item.id ? { ...p, ...changes } : p)));
+    conversionQueueRef.current = conversionQueueRef.current.then(async () => {
+      if (!pickedRef.current.some((p) => p.id === item.id)) return; // Removed while waiting
+      try {
+        const { dataUrl } = await processUploadedImage(item.file, PHOTO_OPTIONS);
+        if (dataUrl.startsWith('data:image/jpeg')) {
+          update({ previewUrl: dataUrl, processedUrl: dataUrl, converting: false });
+          return;
+        }
+      } catch (err) {
+        console.warn('HEIC preview error:', err);
+      }
+      update({ converting: false });
+    });
   };
 
   const readAsDataUrl = (file: File) =>
@@ -83,12 +126,12 @@ export default function HostUploadDialog({
     const entries: Parameters<typeof addMultipleMemories>[0] = [];
     let failed = 0;
     for (let i = 0; i < picked.length; i++) {
-      const { file, isVideo } = picked[i];
+      const { file, isVideo, processedUrl } = picked[i];
       setStatus(`Preparing ${i + 1} of ${picked.length}…`);
       try {
         const url = isVideo
           ? await readAsDataUrl(file)
-          : (await processUploadedImage(file, { maxDimension: 2000, quality: 0.88 })).dataUrl;
+          : processedUrl || (await processUploadedImage(file, PHOTO_OPTIONS)).dataUrl;
         entries.push({
           type: isVideo ? 'video' : 'photo',
           url,
@@ -112,9 +155,21 @@ export default function HostUploadDialog({
   };
 
   const count = picked.length;
+  const cropping = picked.find((p) => p.id === croppingId);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="host-upload-title">
+      {cropping?.previewUrl && (
+        <PhotoCropDialog
+          src={cropping.previewUrl}
+          onCancel={() => setCroppingId(null)}
+          onApply={(url) => {
+            revokePreview(cropping);
+            setPicked((prev) => prev.map((p) => (p.id === cropping.id ? { ...p, previewUrl: url, processedUrl: url } : p)));
+            setCroppingId(null);
+          }}
+        />
+      )}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !uploading && onClose()} />
 
       <div className="relative w-full sm:max-w-xl max-h-[92dvh] flex flex-col bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl">
@@ -180,8 +235,8 @@ export default function HostUploadDialog({
                 </button>
               </div>
               <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                {picked.map((p, i) => (
-                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-[#1C2820]/[0.06]">
+                {picked.map((p) => (
+                  <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden bg-[#1C2820]/[0.06]">
                     {p.previewUrl ? (
                       p.isVideo ? (
                         <video src={p.previewUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
@@ -190,9 +245,20 @@ export default function HostUploadDialog({
                       )
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-[#1C2820]/50 text-[10px] font-semibold gap-1 p-1 text-center">
-                        <ImagePlus className="w-5 h-5" />
-                        HEIC
+                        {p.converting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                        {p.converting ? 'Loading' : 'HEIC'}
                       </div>
+                    )}
+                    {!p.isVideo && p.previewUrl && (
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setCroppingId(p.id)}
+                        aria-label="Crop photo"
+                        className="absolute bottom-1 left-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+                      >
+                        <CropIcon className="w-3.5 h-3.5" />
+                      </button>
                     )}
                     {p.isVideo && (
                       <span className="absolute bottom-1 left-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
@@ -202,7 +268,10 @@ export default function HostUploadDialog({
                     <button
                       type="button"
                       disabled={uploading}
-                      onClick={() => setPicked((prev) => prev.filter((_, j) => j !== i))}
+                      onClick={() => {
+                        revokePreview(p);
+                        setPicked((prev) => prev.filter((other) => other.id !== p.id));
+                      }}
                       aria-label="Remove"
                       className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
                     >

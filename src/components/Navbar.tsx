@@ -34,7 +34,8 @@ export default function Navbar() {
   // Event-specific guest items (event name, guest links, Share Moment, avatar) only belong on guest
   // pages. On host pages a visitor who is not signed in (e.g. /host/login) just sees the brand.
   const inGuestArea = Boolean(pathname?.startsWith("/user"));
-  const showEvent = !isGuest || inGuestArea;
+  // Under the logo: hosts always see 'Host portal' (their event pages name the event), guests see their event
+  const brandSubtitle = !isGuest ? 'Host portal' : inGuestArea && hasRealEvent ? currentEvent.title : '';
 
   // Guest links only (desktop); on phones the bottom tab bar handles navigation
   const navLinks = isGuest && inGuestArea
@@ -68,20 +69,13 @@ export default function Navbar() {
                 m
               </span>
               <div className="flex flex-col min-w-0">
-                {/* Phones: the event is what guests care about, so it leads */}
-                <span className="md:hidden font-serif text-[19px] font-semibold tracking-tight text-[#1C2820] leading-tight truncate">
-                  {isGuest && inGuestArea ? currentEvent.title : 'memorie aisle'}
-                </span>
-                <span className="md:hidden text-[10px] uppercase tracking-[0.14em] text-[#2D4A3A]/80 font-bold leading-tight">
-                  {!isGuest ? 'Host portal' : inGuestArea ? 'memorie aisle' : ''}
-                </span>
-                {/* Desktop */}
-                <span className="hidden md:block font-serif text-2xl tracking-tight text-[#1C2820] leading-none">
+                {/* One style everywhere; only the size changes on larger screens */}
+                <span className="font-serif text-[20px] md:text-2xl font-medium tracking-tight text-[#1C2820] leading-none truncate">
                   memorie aisle
                 </span>
-                {showEvent && hasRealEvent && (
-                  <span className="hidden md:block text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-xs">
-                    {currentEvent.title}
+                {brandSubtitle && (
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-[#2D4A3A] font-bold leading-tight mt-0.5 truncate max-w-xs">
+                    {brandSubtitle}
                   </span>
                 )}
               </div>

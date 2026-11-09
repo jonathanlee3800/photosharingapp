@@ -162,7 +162,7 @@ export default function HostOverviewPage() {
 
   const handleDownloadQr = () => {
     downloadQrCode(guestUrl, currentEvent.title);
-    triggerToast('Downloading high-res QR Code');
+    triggerToast('Downloading high-res QR code');
   };
 
   const handleAddPromptSubmit = (e: React.FormEvent) => {
@@ -200,62 +200,32 @@ export default function HostOverviewPage() {
           </Link>
         </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
-              <span className="text-xs font-semibold">Memories Collected</span>
-              <ImageIcon className="w-4 h-4 text-[#2D4A3A]" />
-            </div>
-            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
-              {memories.length}
-            </div>
-            <div className="text-[11px] text-[#1C2820]/60 font-medium">
-              {memories.filter((m) => m.type === 'photo').length} photos ·{' '}
-              {memories.filter((m) => m.type === 'video').length} video well-wishes
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
-              <span className="text-xs font-semibold">Private Vault</span>
-              <Lock className="w-4 h-4 text-[#2D4A3A]" />
-            </div>
-            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
-              {privateMemories.length}
-            </div>
-            <div className="text-[11px] text-[#1C2820]/60 font-medium">
-              Visible only to you, the hosts
-            </div>
-          </div>
-        </div>
-
-        {/* Middle Row: Generated QR Code Card & Live Contest Card */}
+        {/* First thing a host needs at the event: how guests join, and the live round */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Real Generated QR Code Card */}
           <div className="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-8 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between space-y-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-serif text-2xl sm:text-3xl text-[#1C2820]">
-                  Event QR Code & Link
+                  Event QR code & link
                 </h2>
                 <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
-                  Point phone camera at this QR code to join immediately without downloading an app.
+                  Scan the QR code to join.
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold flex items-center gap-1.5 shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2D4A3A] animate-pulse"></span>
-                Live QR
+                Live QR code
               </span>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-6">
               {/* Scannable Real QR Graphic */}
-              <div className="w-36 h-36 bg-white p-2.5 border border-[#1C2820]/15 rounded-2xl shadow-sm shrink-0 flex items-center justify-center">
+              <div className="w-44 h-44 sm:w-52 sm:h-52 bg-white p-2.5 border border-[#1C2820]/15 rounded-2xl shadow-sm shrink-0 flex items-center justify-center">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
-                    alt={`QR Code for ${currentEvent.title}`}
+                    alt={`QR code for ${currentEvent.title}`}
                     className="w-full h-full object-contain"
                   />
                 ) : (
@@ -264,9 +234,6 @@ export default function HostOverviewPage() {
               </div>
 
               <div className="space-y-3 w-full">
-                <div className="text-xs text-[#1C2820]/70 font-medium leading-relaxed">
-                  Guests can scan this QR code with their phone camera to join the event directly on their browsers.
-                </div>
                 <div className="flex items-center justify-between bg-[#FAF8F5] rounded-xl px-4 py-2.5 border border-[#1C2820]/15">
                   <span className="text-xs sm:text-sm font-mono font-semibold text-[#1C2820] truncate pr-2">
                     {guestUrl}
@@ -304,7 +271,7 @@ export default function HostOverviewPage() {
                 className="w-full min-w-0 py-2.5 px-2 sm:px-4 rounded-xl bg-[#2D4A3A] text-white text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 sm:gap-2 hover:bg-[#1F3628] transition-colors shadow-sm active:scale-[0.99] text-center"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
-                <span className="leading-tight">Download QR Code</span>
+                <span className="leading-tight">Download QR code</span>
               </button>
             </div>
           </div>
@@ -628,6 +595,32 @@ export default function HostOverviewPage() {
           </div>
         </div>
 
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
+              <span className="text-xs font-semibold">Memories Collected</span>
+              <ImageIcon className="w-4 h-4 text-[#2D4A3A]" />
+            </div>
+            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
+              {memories.length}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
+              <span className="text-xs font-semibold">Private Vault</span>
+              <Lock className="w-4 h-4 text-[#2D4A3A]" />
+            </div>
+            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
+              {privateMemories.length}
+            </div>
+            <div className="text-[11px] text-[#1C2820]/60 font-medium">
+              Visible only to you, the hosts
+            </div>
+          </div>
+        </div>
+
         {/* Bottom Row: Tags Manager & Live Spotlight */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Tags Manager for this Event */}
@@ -903,7 +896,7 @@ export default function HostOverviewPage() {
 
               <div className="text-center">
                 <Link
-                  href={`/user/${currentEvent.code}/projector`}
+                  href={`/host/${currentEvent.code}/projector`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2D4A3A] hover:text-[#1F3628] hover:underline transition-colors py-0.5"

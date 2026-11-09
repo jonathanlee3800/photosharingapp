@@ -3,6 +3,7 @@
 import React from 'react';
 import { Sparkles, Heart, Film, Maximize2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import PhotoFrame from '@/components/PhotoFrame';
 
 export default function SlideshowPage() {
   const {
@@ -63,14 +64,10 @@ export default function SlideshowPage() {
               loop
               muted
               playsInline
-              className="w-full h-full object-cover transition-all duration-1000 ease-out"
+              className="w-full h-full object-contain bg-black transition-all duration-1000 ease-out"
             />
           ) : (
-            <img
-              src={activeSlideMemory.url}
-              alt={activeSlideMemory.caption}
-              className="w-full h-full object-cover transition-all duration-1000 ease-out"
-            />
+            <PhotoFrame src={activeSlideMemory.url} alt={activeSlideMemory.caption} />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />
 
@@ -113,7 +110,7 @@ export default function SlideshowPage() {
           {/* Real-time Emoji Reactions Bar */}
           <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md space-y-3">
             <div className="flex items-center justify-between text-xs font-semibold text-white/75">
-              <span>Send live love to the screen</span>
+              <span>Send live reactions to the screen</span>
               <span>{reactionCount.toLocaleString()} total loves</span>
             </div>
             <div className="flex items-center gap-2">

@@ -193,7 +193,7 @@ export default function HostEventHeader({ active }: { active: 'overview' | 'phot
           {/* Symmetrical 2-column action bar on mobile; inline on desktop */}
           <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
             <Link
-              href={`/user/${currentEvent.code}/projector`}
+              href={`/host/${currentEvent.code}/projector`}
               target="_blank"
               className="h-[38px] px-3.5 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] flex items-center justify-center gap-1.5 transition-colors shadow-2xs w-full sm:w-auto"
             >

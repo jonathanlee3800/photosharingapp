@@ -28,6 +28,7 @@ import HostEventHeader from '@/components/HostEventHeader';
 import { useConfirm } from '@/components/ConfirmDialog';
 import HostUploadDialog from '@/components/HostUploadDialog';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
+import PhotoFrame from '@/components/PhotoFrame';
 
 export default function HostPhotosPage() {
   const {
@@ -541,14 +542,10 @@ export default function HostPhotosPage() {
                     src={item.url}
                     muted
                     playsInline
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-contain bg-black"
                   />
                 ) : (
-                  <img
-                    src={item.url}
-                    alt={item.caption}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  <PhotoFrame src={item.url} alt={item.caption} />
                 )}
 
                 {/* Selection Checkbox */}

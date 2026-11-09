@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Clock, Heart, Lock, Trophy } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
+import PhotoFrame from '@/components/PhotoFrame';
 
 const formatCountdown = (seconds: number) => {
   const hrs = Math.floor(seconds / 3600);
@@ -136,9 +137,9 @@ export default function HostRoundPage() {
                     >
                       <div className="relative aspect-square bg-black/5">
                         {item.type === 'video' ? (
-                          <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
+                          <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain bg-black" />
                         ) : (
-                          <img src={item.url} alt={item.caption} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                          <PhotoFrame src={item.url} alt={item.caption} />
                         )}
                         <span
                           className={`absolute top-3 left-3 h-8 min-w-8 px-2.5 rounded-full text-[13px] font-bold flex items-center justify-center ${

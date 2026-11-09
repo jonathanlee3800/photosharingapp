@@ -324,7 +324,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
       // Drop anything stored from another host account. Events without an owner are ones this
       // browser opened by PIN, kept so a host can still view a guest link.
       setEvents((prev) => [
-        ...mapped,
+        // A host's rows don't include the live round total, so keep the one already known
+        ...mapped.map((e) => ({ ...e, roundVoteTotal: prev.find((p) => p.id === e.id)?.roundVoteTotal ?? e.roundVoteTotal })),
         ...prev.filter((e) => !ownIds.has(e.id) && !e.ownerId && e.id !== INITIAL_EVENTS[0].id),
       ]);
     } catch (err) {
@@ -880,14 +881,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   }, [fetchPostsForEvent, currentEvent.id]);
-
-  // The projector goes back to each photo's own votes when a round ends, so get them
-  const roundClosedAt = votingRound.closedAt;
-  useEffect(() => {
-    if (!isProjectorScreen || !roundClosedAt) return;
-    const timer = setTimeout(refreshPosts, 1500);
-    return () => clearTimeout(timer);
-  }, [isProjectorScreen, roundClosedAt, refreshPosts]);
 
   // Votes are only allowed on photos in the live round's category
   const canVoteOn = (memory: MemoryItem) =>

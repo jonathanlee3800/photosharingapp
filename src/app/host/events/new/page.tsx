@@ -448,7 +448,7 @@ export default function CreateEventPage() {
             <div className="bg-[#FAF8F5] rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-lg space-y-6 text-center">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#2D4A3A]">
-                  Instant QR Generation
+                  Instant QR code
                 </span>
                 <h3 className="font-serif text-2xl font-bold text-[#1C2820] mt-1">
                   Live Event Card
@@ -497,7 +497,7 @@ export default function CreateEventPage() {
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>{isCreating ? 'Creating your event…' : 'Launch Event & Save QR Code'}</span>
+                  <span>{isCreating ? 'Creating your event…' : 'Launch Event & Save QR code'}</span>
                 </button>
                 {submitError && (
                   <p className="text-[11px] text-red-600 font-semibold text-center">{submitError}</p>

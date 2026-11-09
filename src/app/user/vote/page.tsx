@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Heart, Trophy, Clock, Lock, Camera, Check } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import confetti from 'canvas-confetti';
+import PhotoFrame from '@/components/PhotoFrame';
 
 const formatCountdown = (seconds: number) => {
   const hrs = Math.floor(seconds / 3600);
@@ -123,9 +124,9 @@ export default function VotePage() {
             >
               <div className="relative aspect-[4/5] sm:aspect-square bg-black/5">
                 {item.type === 'video' ? (
-                  <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
+                  <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain bg-black" />
                 ) : (
-                  <img src={item.url} alt={item.caption} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                  <PhotoFrame src={item.url} alt={item.caption} />
                 )}
               </div>
 

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Heart, Clock, X, Trophy, ChevronRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useEvent } from '@/context/EventContext';
+import PhotoFrame from '@/components/PhotoFrame';
 
 // Per event: the close time of the last winner reveal this phone has shown
 const SEEN_REVEAL_KEY = 'withlove_seen_reveal';
@@ -287,9 +288,9 @@ function WinnerReveal({ promptId, onClose }: { promptId: string; onClose: () => 
                   <figure key={w.id} className="rounded-[24px] overflow-hidden bg-white border-2 border-[#F5C451] shadow-[0_12px_40px_rgba(245,196,81,0.25)]">
                     <div className={`relative bg-black/5 ${isTie ? 'aspect-square' : 'aspect-[4/5] max-h-[48dvh] w-full'}`}>
                       {w.type === 'video' ? (
-                        <video src={w.url} muted playsInline autoPlay loop className="absolute inset-0 w-full h-full object-cover" />
+                        <video src={w.url} muted playsInline autoPlay loop className="absolute inset-0 w-full h-full object-contain bg-black" />
                       ) : (
-                        <img src={w.url} alt={w.caption} className="absolute inset-0 w-full h-full object-cover" />
+                        <PhotoFrame src={w.url} alt={w.caption} />
                       )}
                       <span className="absolute top-3 left-3 h-8 px-3 rounded-full bg-[#F5C451] text-[#1C2820] text-[13px] font-bold flex items-center gap-1 shadow-md">
                         🏆 Winner

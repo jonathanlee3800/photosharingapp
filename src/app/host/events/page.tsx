@@ -200,7 +200,7 @@ export default function HostEventsPage() {
                     }}
                     className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] hover:from-[#1F3628] hover:to-[#16261E] text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
                   >
-                    <span>Manage Event & QR Code</span>
+                    <span>Manage Event & QR code</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </button>
 

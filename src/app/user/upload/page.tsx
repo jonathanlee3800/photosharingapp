@@ -2,10 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Camera, Video, Check, Lock, RotateCcw, X, Loader2 } from 'lucide-react';
+import { Camera, Video, Check, Lock, RotateCcw, X, Loader2, Crop as CropIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useEvent } from '@/context/EventContext';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
+import PhotoFrame from '@/components/PhotoFrame';
+import PhotoCropDialog from '@/components/PhotoCropDialog';
 
 interface SelectedMediaFile {
   url: string;
@@ -41,6 +43,7 @@ export default function UploadPage() {
   }, [prompts, promptId]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -196,16 +199,37 @@ export default function UploadPage() {
           className="hidden"
         />
 
+        {isCropping && selectedFile && (
+          <PhotoCropDialog
+            src={selectedFile.url}
+            onCancel={() => setIsCropping(false)}
+            onApply={(url) => {
+              setSelectedFile({ ...selectedFile, url });
+              setIsCropping(false);
+            }}
+          />
+        )}
+
         {/* Media */}
         <div className="relative aspect-[4/5] rounded-[28px] overflow-hidden bg-white border border-[#1C2820]/[0.08] shadow-[0_10px_40px_rgba(28,40,32,0.06)]">
           {selectedFile ? (
             <>
               {selectedFile.type === 'video' ? (
-                <video src={selectedFile.url} controls muted playsInline className="absolute inset-0 w-full h-full object-cover bg-black" />
+                <video src={selectedFile.url} controls muted playsInline className="absolute inset-0 w-full h-full object-contain bg-black bg-black" />
               ) : (
-                <img src={selectedFile.url} alt="Your photo" className="absolute inset-0 w-full h-full object-cover" />
+                <PhotoFrame src={selectedFile.url} alt="Your photo" />
               )}
               <div className="absolute top-3 right-3 flex gap-2">
+                {selectedFile.type === 'photo' && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setIsCropping(true)}
+                    className="h-9 px-3.5 rounded-full bg-black/50 backdrop-blur-md text-white text-[13px] font-semibold flex items-center gap-1.5 press"
+                  >
+                    <CropIcon className="w-3.5 h-3.5" /> Crop
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={busy}

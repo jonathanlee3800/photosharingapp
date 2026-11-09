@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Sparkles, Heart, Film, Trophy, Plus, Search, ChevronRight, X, Camera } from 'lucide-react';
+import { Sparkles, Film, Trophy, Plus, Search, ChevronRight, X, Camera } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import PhotoLightboxModal from '@/components/PhotoLightboxModal';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
+import PhotoFrame from '@/components/PhotoFrame';
 
 const REACTION_EMOJIS = ['❤️', '🥂', '✨', '😂', '🎉'];
 const PAGE_SIZE = 24;
@@ -17,11 +18,9 @@ export default function GalleryPage() {
     prompts,
     getPrompt,
     activeSlideMemory,
-    toggleVote,
     downloadSingle,
     sendReaction,
     floatingEmojis,
-    canVoteOn,
     votingRound,
   } = useEvent();
 
@@ -57,40 +56,14 @@ export default function GalleryPage() {
     if (idx !== -1) setLightboxIndex(idx);
   };
 
-  const heartButton = (item: (typeof publicMemories)[number], variant: 'tile' | 'card') => {
-    const votable = canVoteOn(item);
-    return (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleVote(item.id);
-        }}
-        aria-label={votable ? (item.votedByMe ? 'Remove vote' : 'Vote') : 'Voting opens during a live photo contest'}
-        aria-pressed={item.votedByMe}
-        className={`press inline-flex items-center gap-1 rounded-full font-semibold ${
-          variant === 'tile' ? 'h-8 px-2.5 text-[12px]' : 'h-10 px-4 text-[14px]'
-        } ${
-          item.votedByMe
-            ? 'bg-white text-[#2D4A3A]'
-            : variant === 'tile'
-              ? 'bg-black/35 backdrop-blur-md text-white'
-              : 'bg-[#E9EFEA] text-[#2D4A3A]'
-        } ${votable ? '' : 'opacity-60'}`}
-      >
-        <Heart className={variant === 'tile' ? 'w-3.5 h-3.5' : 'w-4 h-4'} fill={item.votedByMe ? 'currentColor' : 'none'} />
-      </button>
-    );
-  };
-
   return (
     <div className="w-full max-w-6xl mx-auto pb-8 md:pb-16">
       {/* Header */}
       <header className="px-5 md:px-8 pt-6 md:pt-10 pb-5 flex items-end justify-between gap-4">
         <div className="animate-fade-up">
           <p className="text-[12px] uppercase tracking-[0.16em] font-semibold text-[#2D4A3A]/80">Live gallery</p>
-          <h1 className="font-serif text-[38px] md:text-[56px] leading-[1.02] font-medium tracking-tight text-[#1C2820] mt-1">
-            Every little moment.
+          <h1 className="font-serif text-[38px] md:text-[56px] leading-[1.02] font-medium tracking-tight text-[#1C2820] mt-1 break-words">
+            {currentEvent.title}
           </h1>
           <p className="text-[15px] text-[#1C2820]/55 mt-2">
             {publicMemories.length} {publicMemories.length === 1 ? 'memory' : 'memories'} shared so far
@@ -166,9 +139,9 @@ export default function GalleryPage() {
               aria-label="View photo"
             >
               {spotlight.type === 'video' ? (
-                <video src={spotlight.url} muted playsInline autoPlay loop className="absolute inset-0 w-full h-full object-cover" />
+                <video src={spotlight.url} muted playsInline autoPlay loop className="absolute inset-0 w-full h-full object-contain bg-black" />
               ) : (
-                <img src={spotlight.url} alt={spotlight.caption} className="absolute inset-0 w-full h-full object-cover" />
+                <PhotoFrame src={spotlight.url} alt={spotlight.caption} />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:hidden" />
               <span className="absolute top-3.5 left-3.5 h-8 px-3 rounded-full bg-black/45 backdrop-blur-md text-white text-[12px] font-semibold flex items-center gap-1.5">
@@ -193,10 +166,7 @@ export default function GalleryPage() {
               </div>
 
               <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-[#1C2820]/55">Send love to the big screen</p>
-                  {heartButton(spotlight, 'card')}
-                </div>
+                <p className="text-[13px] font-medium text-[#1C2820]/55">Send live reactions to the screen</p>
                 <div className="grid grid-cols-5 gap-2">
                   {REACTION_EMOJIS.map((emoji) => (
                     <button
@@ -298,15 +268,9 @@ export default function GalleryPage() {
                   className="group relative aspect-[4/5] rounded-[18px] md:rounded-[22px] overflow-hidden bg-[#1C2820]/[0.06] cursor-pointer press"
                 >
                   {item.type === 'video' ? (
-                    <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
+                    <video src={item.url} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-contain bg-black" />
                   ) : (
-                    <img
-                      src={item.url}
-                      alt={item.caption}
-                      loading="lazy"
-                      decoding="async"
-                      className="absolute inset-0 w-full h-full object-cover md:group-hover:scale-105 transition-transform duration-500"
-                    />
+                    <PhotoFrame src={item.url} alt={item.caption} />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/0 to-black/0" />
 
@@ -324,7 +288,6 @@ export default function GalleryPage() {
                       <p className="text-[13px] font-semibold leading-tight truncate">{item.guestName}</p>
                       <p className="hidden md:block text-[12px] text-white/75 leading-snug line-clamp-1">{item.caption}</p>
                     </div>
-                    {heartButton(item, 'tile')}
                   </div>
                 </div>
               );
@@ -389,8 +352,6 @@ export default function GalleryPage() {
           totalCount={filtered.length}
           categoryLabel={getPrompt(filtered[lightboxIndex].promptId).label}
           categoryIcon={getPrompt(filtered[lightboxIndex].promptId).icon}
-          onToggleVote={toggleVote}
-          canVote={canVoteOn}
           onDownload={downloadSingle}
         />
       )}

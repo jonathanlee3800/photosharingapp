@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  Sparkles,
-  Heart,
   QrCode,
   Play,
   Pause,
@@ -15,6 +13,7 @@ import { MemoryItem, PromptItem } from '@/lib/initialData';
 import { useEvent, FloatingEmoji } from '@/context/EventContext';
 import { generateQrDataUrl } from '@/lib/qrHelper';
 import { formatPin } from '@/lib/pin';
+import PhotoFrame from '@/components/PhotoFrame';
 
 interface ProjectorScreenProps {
   memories?: MemoryItem[];
@@ -22,7 +21,6 @@ interface ProjectorScreenProps {
   isSpotlight?: boolean;
   getPrompt?: (id: string) => PromptItem;
   floatingEmojis?: FloatingEmoji[];
-  onReaction?: (emoji: string) => void;
   onNextSlide?: () => void;
   isPlaying?: boolean;
   onTogglePlay?: () => void;
@@ -35,7 +33,6 @@ export default function ProjectorScreen({
   isSpotlight: propIsSpotlight,
   getPrompt: propGetPrompt,
   floatingEmojis: propFloatingEmojis,
-  onReaction: propOnReaction,
   onNextSlide: propOnNextSlide,
   isPlaying: propIsPlaying,
   onTogglePlay: propOnTogglePlay,
@@ -53,19 +50,15 @@ export default function ProjectorScreen({
   const isSpotlight = propIsSpotlight ?? Boolean(eventContext.spotlightId);
   const getPrompt = propGetPrompt ?? eventContext.getPrompt;
   const floatingEmojis = propFloatingEmojis ?? eventContext.floatingEmojis;
-  const handleReaction = propOnReaction ?? eventContext.sendReaction;
   const handleNextSlide = propOnNextSlide ?? eventContext.cycleNextSlide;
   const isPlaying = propIsPlaying ?? eventContext.isSlideshowPlaying;
   const handleTogglePlay = propOnTogglePlay ?? eventContext.toggleSlideshowPlaying;
 
   const [qrDataUrl, setQrDataUrl] = useState('');
-  // Site address shown on screen for typing the PIN ("yoursite.com/join"); set on the client
-  const [joinHost, setJoinHost] = useState('');
 
   useEffect(() => {
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    setJoinHost(origin.replace(/^https?:\/\//, ''));
     const targetUrl = `${origin}/user/${currentEvent.code}`;
     generateQrDataUrl(targetUrl, { width: 200, margin: 1 }).then((data) => {
       setQrDataUrl(data);
@@ -91,7 +84,6 @@ export default function ProjectorScreen({
   }, [canControl, handleNextSlide, handleTogglePlay, eventContext]);
 
   if (!activeMemory) return null;
-  const promptObj = getPrompt(activeMemory.promptId);
 
   // Derive adjacent images for carousel depth effect (safely falling back to activeMemory if memories is empty)
   const currentIndex = memories.findIndex((m) => m.id === activeMemory.id);
@@ -172,14 +164,10 @@ export default function ProjectorScreen({
               loop
               muted
               playsInline
-              className="w-full h-full object-cover scale-105"
+              className="w-full h-full object-contain bg-black"
             />
           ) : (
-            <img
-              src={activeMemory.url}
-              className="w-full h-full object-cover scale-105"
-              alt={activeMemory.caption}
-            />
+            <PhotoFrame src={activeMemory.url} alt={activeMemory.caption} />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20"></div>
 
@@ -210,7 +198,6 @@ export default function ProjectorScreen({
         {/* Left: Caption & Guest Attribution */}
         <div className="max-w-2xl">
           <div className="text-xs font-sans font-bold text-[#A3C9B0] uppercase tracking-[0.25em] mb-3 flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
             <span>{isSpotlight ? 'A MOMENT IN THE SPOTLIGHT' : 'LIVE SLIDESHOW'}</span>
           </div>
 
@@ -219,57 +206,39 @@ export default function ProjectorScreen({
           </h2>
 
           <div className="text-sm sm:text-base font-sans text-white/70 font-medium">
-            Through <span className="text-[#FAF8F5] font-bold">{activeMemory.guestName}</span>
-            ’s eyes
-            <span className="mx-3 opacity-50">·</span> {promptObj.label}
+            By <span className="text-[#FAF8F5] font-bold">{activeMemory.guestName}</span>
             <span className="mx-3 opacity-50">·</span> {activeMemory.timestamp}
           </div>
         </div>
 
         {/* Right: Table QR Code for Guest Scanning */}
         <div className="flex flex-col items-end text-right shrink-0">
-          <div className="flex items-center gap-3 mb-4 mr-1">
-            <Heart
-              className="w-8 h-8 text-[#FAF8F5] stroke-[1.5px] cursor-pointer hover:scale-110 active:scale-90 transition-transform"
-              onClick={() => handleReaction('❤️')}
-            />
-            <span className="text-3xl sm:text-4xl text-[#FAF8F5] font-medium">
-              {votingRound.isActive ? roundTotalVotes : activeMemory.votes}
-            </span>
-            <span className="text-xs font-sans text-white/50 font-bold uppercase tracking-widest mt-1 ml-1">
-              {votingRound.isActive ? (roundTotalVotes === 1 ? 'total vote' : 'total votes') : 'little loves sent'}
-            </span>
-          </div>
+          {votingRound.isActive && (
+            <div className="flex items-center gap-3 mb-4 mr-1">
+              <span className="text-3xl sm:text-4xl text-[#FAF8F5] font-medium">{roundTotalVotes}</span>
+              <span className="text-xs font-sans text-white/50 font-bold uppercase tracking-widest mt-1 ml-1">
+                {roundTotalVotes === 1 ? 'total vote' : 'total votes'}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-6 font-sans">
-            <div className="text-right hidden sm:block">
-              <div className="text-lg font-serif text-[#FAF8F5] mb-0.5">
-                Your view belongs here, too.
-              </div>
-              <div className="text-xs text-white/60 font-medium">
-                Scan to share photos, leave wishes, or send loves.
-              </div>
-            </div>
-
-            <div className="h-10 w-px bg-white/20 hidden sm:block"></div>
-
             <div className="text-right">
-              <div className="text-[10px] text-white/60 tracking-wider font-bold uppercase">
-                Go to {joinHost ? `${joinHost}/join` : '/join'} · PIN
+              <div className="text-lg sm:text-xl font-semibold text-[#FAF8F5] leading-tight">www.memorieaisle.com/join</div>
+              <div className="flex items-baseline justify-end gap-2 mt-1">
+                <span className="text-xs text-white/60 font-bold">PIN</span>
+                <span className="text-3xl sm:text-4xl font-bold text-[#FAF8F5] leading-none tracking-wider tabular-nums">
+                  {formatPin(currentEvent.code)}
+                </span>
               </div>
-              <div className="text-3xl sm:text-4xl font-bold text-[#FAF8F5] leading-none tracking-wider tabular-nums mt-1">
-                {formatPin(currentEvent.code)}
-              </div>
-              <div className="text-[10px] text-white/50 tracking-wider font-semibold uppercase mt-1">
-                or scan the QR · No app needed
-              </div>
+              <div className="text-xs text-white/60 font-medium mt-1">or scan the QR code</div>
             </div>
 
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white p-1.5 rounded-2xl shadow-2xl shrink-0 flex items-center justify-center">
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
-                  alt={`QR Code for ${currentEvent.title}`}
+                  alt={`QR code for ${currentEvent.title}`}
                   className="w-full h-full object-contain"
                 />
               ) : (
