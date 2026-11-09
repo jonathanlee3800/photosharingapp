@@ -482,7 +482,7 @@ export default function CreateEventPage() {
 
                 <div className="mt-3 text-center">
                   <div className="font-serif text-base font-bold text-[#1C2820] truncate">
-                    {title || 'Joshua & Simone'}
+                    {title || 'Your event name'}
                   </div>
                   <div className="text-[10px] font-mono font-bold tracking-wider text-[#2D4A3A] mt-0.5">
                     PIN: • • •  • • •

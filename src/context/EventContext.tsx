@@ -175,6 +175,8 @@ const STORAGE_KEY_GUEST_ID = 'withlove_guest_id';
 // Legacy cached host session; no longer trusted, only cleared on load
 const STORAGE_KEY_HOST_AUTH = 'withlove_host_user_auth';
 const STORAGE_KEY_REACTIONS = 'withlove_reactions_count';
+// The host account this browser's stored data belongs to, so a new login starts clean
+const STORAGE_KEY_SIGNED_IN_AS = 'withlove_signed_in_as';
 
 // Minimum gap between emoji sends from one screen (taps in between still show locally)
 const REACTION_BROADCAST_GAP_MS = 150;
@@ -319,9 +321,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
       }
       const mapped: EventItem[] = (data || []).map(mapDbEvent);
       const ownIds = new Set(mapped.map((e) => e.id));
+      // Drop anything stored from another host account. Events without an owner are ones this
+      // browser opened by PIN, kept so a host can still view a guest link.
       setEvents((prev) => [
         ...mapped,
-        ...prev.filter((e) => !ownIds.has(e.id) && e.ownerId !== ownerId && e.id !== INITIAL_EVENTS[0].id),
+        ...prev.filter((e) => !ownIds.has(e.id) && !e.ownerId && e.id !== INITIAL_EVENTS[0].id),
       ]);
     } catch (err) {
       console.warn('Error fetching events from Supabase:', err);
@@ -476,6 +480,43 @@ export function EventProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Switching role, or logging out, leaves nothing from the previous role in the browser: the app's
+  // stored data is emptied and what's on screen is reset. Someone on a guest page keeps that one
+  // event's public view. Only a full logout empties all storage: at a login, the sign-in in progress
+  // must be left alone.
+  const joiningAsGuestRef = useRef(false);
+  const currentEventIdRef = useRef(currentEventId);
+  currentEventIdRef.current = currentEventId;
+  const signedInAsRef = useRef<string | null>(null);
+  const clearBrowserData = useCallback((scope: 'everything' | 'app-data' = 'everything') => {
+    signedInAsRef.current = null;
+    try {
+      if (scope === 'everything') {
+        localStorage.clear();
+        sessionStorage.clear();
+      } else {
+        for (const storage of [localStorage, sessionStorage]) {
+          Object.keys(storage)
+            .filter((key) => key.startsWith('withlove_'))
+            .forEach((key) => storage.removeItem(key));
+        }
+      }
+    } catch (e) {}
+    const onGuestPage = window.location.pathname.startsWith('/user');
+    const keepId = currentEventIdRef.current;
+    setEvents((prev) => {
+      const kept = onGuestPage ? prev.filter((e) => e.id === keepId).map((e) => ({ ...e, ownerId: undefined })) : [];
+      return kept.length > 0 ? kept : INITIAL_EVENTS;
+    });
+    setMemories((prev) => (onGuestPage ? prev.filter((m) => m.eventId === keepId && !m.isPrivate) : []));
+    if (!onGuestPage) setCurrentEventIdState(INITIAL_EVENTS[0].id);
+    setGuestNameState('');
+    setGuestId('');
+    setHasJoined(false);
+    setReactionCount(0);
+    setSpotlightId(null);
+  }, []);
+
   // 2. Supabase Auth State Synchronization & Initial DB Pull
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -484,6 +525,19 @@ export function EventProvider({ children }: { children: ReactNode }) {
     // (covers email login, sign up and the Google OAuth redirect).
     const applySession = (session: { user: any } | null) => {
       if (session?.user) {
+        // A different person's data may be stored here: start clean, once per login (this runs on
+        // every page load and token refresh, which must not wipe the host's own data)
+        if (signedInAsRef.current !== session.user.id) {
+          let storedAs: string | null = session.user.id;
+          try {
+            storedAs = localStorage.getItem(STORAGE_KEY_SIGNED_IN_AS);
+          } catch (e) {}
+          if (storedAs !== session.user.id) clearBrowserData('app-data');
+          signedInAsRef.current = session.user.id;
+          try {
+            localStorage.setItem(STORAGE_KEY_SIGNED_IN_AS, session.user.id);
+          } catch (e) {}
+        }
         setHostUser(toHostUser(session.user));
         setGuestNameState('');
         setGuestId('');
@@ -504,7 +558,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     // Listen to Auth State Changes (sign in/out in this or another tab, token refresh)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      applySession(session);
+      if (event === 'SIGNED_OUT' && !joiningAsGuestRef.current) clearBrowserData();
+    });
 
     return () => {
       subscription?.unsubscribe();
@@ -519,8 +576,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
       fetchHostEvents(hostUserId);
       return;
     }
-    // Signed out: don't keep a host's events on this device
-    setEvents((prev) => prev.filter((e) => !e.ownerId));
+    // Signed out: don't keep a host's events on this device, except the one open on a guest page,
+    // which stays as a plain guest view instead of suddenly showing "Event Not Found"
+    setEvents((prev) =>
+      prev
+        .filter((e) => !e.ownerId || (isGuestArea && e.id === currentEventIdRef.current))
+        .map((e) => (e.ownerId ? { ...e, ownerId: undefined } : e))
+    );
     if (!isGuestArea) setEventsLoaded(true);
   }, [hostUserId, isAuthLoading, isGuestArea, fetchHostEvents]);
 
@@ -1031,8 +1093,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
         console.warn('Supabase sign out error:', e);
       }
     }
-    // Only the host session ends; this browser's guest identity is kept
     setHostUser(null);
+    // Also runs from the sign-out event above; repeated here in case that event doesn't arrive
+    clearBrowserData();
     triggerToast('Logged out of Host Admin');
   };
 
@@ -1383,12 +1446,16 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const clean = nameInput.trim() || 'Wedding Guest';
     // One role per browser: joining as a guest ends any host session first
     if (hostUser && isSupabaseConfigured()) {
+      // Clears all host data below, then saves the name just entered; keeps this event's public view
+      joiningAsGuestRef.current = true;
       try {
         await supabase.auth.signOut();
       } catch (e) {
         console.warn('Supabase sign out error:', e);
       }
+      joiningAsGuestRef.current = false;
       setHostUser(null);
+      clearBrowserData();
     }
     setGuestName(clean);
     setGuestCount((c) => c + 1);

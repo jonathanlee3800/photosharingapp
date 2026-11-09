@@ -5,13 +5,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Image as ImageIcon, Play, Heart, Plus, Download, LogOut } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { INITIAL_EVENTS } from '@/lib/initialData';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { currentEvent, memories, setIsZipModalOpen, isHostLoggedIn, logoutHost, hasJoined, guestName } =
+  const { currentEvent, hostEvents, memories, setIsZipModalOpen, isHostLoggedIn, logoutHost, hasJoined, guestName } =
     useEvent();
   // Anyone not signed in as a host only sees guest navigation; the host login link lives in the footer
   const isGuest = !isHostLoggedIn;
+  // A host only ever sees their own event named here, never the built-in sample or one opened by PIN
+  const hasRealEvent = isGuest
+    ? currentEvent.id !== INITIAL_EVENTS[0].id
+    : hostEvents.some((e) => e.id === currentEvent.id);
 
   // If on full projector screen, we don't show the standard site navbar
   // Full-screen pages with their own chrome: projector and the Kahoot-style PIN screen
@@ -74,7 +79,7 @@ export default function Navbar() {
                 <span className="hidden md:block font-serif text-2xl tracking-tight text-[#1C2820] leading-none">
                   memorie aisle
                 </span>
-                {showEvent && (
+                {showEvent && hasRealEvent && (
                   <span className="hidden md:block text-[10px] uppercase tracking-widest text-[#2D4A3A] font-bold mt-0.5 truncate max-w-xs">
                     {currentEvent.title}
                   </span>
@@ -151,7 +156,7 @@ export default function Navbar() {
             )}
 
             {/* Export ZIP Trigger (Host Only) */}
-            {isHostLoggedIn && (
+            {isHostLoggedIn && hasRealEvent && (
               <button
                 onClick={() => setIsZipModalOpen(true)}
                 className="hidden xl:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#1C2820]/75 hover:text-[#1C2820] hover:bg-black/5 transition-all"
