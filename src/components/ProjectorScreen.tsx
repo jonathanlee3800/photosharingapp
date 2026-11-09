@@ -1,293 +1,188 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import {
-  QrCode,
-  Play,
-  Pause,
-  ChevronRight,
-  ChevronLeft,
-  Maximize2,
-} from 'lucide-react';
-import { MemoryItem, PromptItem } from '@/lib/initialData';
-import { useEvent, FloatingEmoji } from '@/context/EventContext';
+import Link from 'next/link';
+import { Play, Pause, ChevronRight, ChevronLeft, Maximize2, X, Pin } from 'lucide-react';
+import { useEvent } from '@/context/EventContext';
 import { generateQrDataUrl } from '@/lib/qrHelper';
 import { formatPin } from '@/lib/pin';
-import PhotoFrame from '@/components/PhotoFrame';
+import SlideStage from '@/components/SlideStage';
 
-interface ProjectorScreenProps {
-  memories?: MemoryItem[];
-  activeMemory?: MemoryItem;
-  isSpotlight?: boolean;
-  getPrompt?: (id: string) => PromptItem;
-  floatingEmojis?: FloatingEmoji[];
-  onNextSlide?: () => void;
-  isPlaying?: boolean;
-  onTogglePlay?: () => void;
-  fullscreenMode?: boolean;
-}
+const CONTROLS_HIDE_MS = 3000;
 
-export default function ProjectorScreen({
-  memories: propMemories,
-  activeMemory: propActiveMemory,
-  isSpotlight: propIsSpotlight,
-  getPrompt: propGetPrompt,
-  floatingEmojis: propFloatingEmojis,
-  onNextSlide: propOnNextSlide,
-  isPlaying: propIsPlaying,
-  onTogglePlay: propOnTogglePlay,
-  fullscreenMode = true,
-}: ProjectorScreenProps) {
-  const eventContext = useEvent();
-  const { currentEvent, isHostLoggedIn, votingRound } = eventContext;
-  // During a live round only the running total shows; each photo's own votes stay hidden until the end
-  const roundTotalVotes = currentEvent.roundVoteTotal ?? 0;
+/** The big screen: one photo at a time on a calm stage, with a single card showing how to join. */
+export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
+  const {
+    currentEvent,
+    isHostLoggedIn,
+    votingRound,
+    publicMemories,
+    activeSlideMemory: active,
+    spotlightId,
+    floatingEmojis,
+    cycleNextSlide,
+    cyclePrevSlide,
+    isSlideshowPlaying,
+    toggleSlideshowPlaying,
+  } = useEvent();
   // Only the host may skip, pause or resume the slideshow; anyone else just watches
   const canControl = isHostLoggedIn;
-
-  const memories = propMemories ?? eventContext.publicMemories;
-  const activeMemory = propActiveMemory ?? eventContext.activeSlideMemory;
-  const isSpotlight = propIsSpotlight ?? Boolean(eventContext.spotlightId);
-  const getPrompt = propGetPrompt ?? eventContext.getPrompt;
-  const floatingEmojis = propFloatingEmojis ?? eventContext.floatingEmojis;
-  const handleNextSlide = propOnNextSlide ?? eventContext.cycleNextSlide;
-  const isPlaying = propIsPlaying ?? eventContext.isSlideshowPlaying;
-  const handleTogglePlay = propOnTogglePlay ?? eventContext.toggleSlideshowPlaying;
+  const roundTotalVotes = currentEvent.roundVoteTotal ?? 0;
 
   const [qrDataUrl, setQrDataUrl] = useState('');
-
   useEffect(() => {
-    const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const targetUrl = `${origin}/user/${currentEvent.code}`;
-    generateQrDataUrl(targetUrl, { width: 200, margin: 1 }).then((data) => {
-      setQrDataUrl(data);
-    });
-  }, [currentEvent.id, currentEvent.code]);
+    generateQrDataUrl(`${window.location.origin}/user/${currentEvent.code}`, { width: 320, margin: 1 }).then(setQrDataUrl);
+  }, [currentEvent.code]);
 
-  // Keyboard navigation for presentation (host only)
+  // Controls and the pointer appear when the mouse moves, then get out of the way
+  const [showControls, setShowControls] = useState(true);
+  useEffect(() => {
+    let timer = setTimeout(() => setShowControls(false), CONTROLS_HIDE_MS);
+    const wake = () => {
+      setShowControls(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setShowControls(false), CONTROLS_HIDE_MS);
+    };
+    window.addEventListener('mousemove', wake);
+    window.addEventListener('touchstart', wake);
+    window.addEventListener('keydown', wake);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('mousemove', wake);
+      window.removeEventListener('touchstart', wake);
+      window.removeEventListener('keydown', wake);
+    };
+  }, []);
+
+  // Keyboard shortcuts for presenting (host only)
   useEffect(() => {
     if (!canControl) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
-        handleNextSlide();
+        cycleNextSlide();
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        eventContext.cyclePrevSlide();
+        cyclePrevSlide();
       } else if (e.key === 'p' || e.key === 'P') {
-        handleTogglePlay();
+        toggleSlideshowPlaying();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canControl, handleNextSlide, handleTogglePlay, eventContext]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
-  if (!activeMemory) return null;
+  if (!active) return null;
 
-  // Derive adjacent images for carousel depth effect (safely falling back to activeMemory if memories is empty)
-  const currentIndex = memories.findIndex((m) => m.id === activeMemory.id);
-  const safeIdx = currentIndex >= 0 ? currentIndex : 0;
-  const prevMemory =
-    memories[(safeIdx - 1 + memories.length) % Math.max(1, memories.length)] ||
-    memories[0] ||
-    activeMemory;
-  const nextMemory =
-    memories[(safeIdx + 1) % Math.max(1, memories.length)] ||
-    memories[0] ||
-    activeMemory;
-
-  const handleToggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
   };
+
+  const controlClass = 'w-11 h-11 rounded-full flex items-center justify-center text-[#2D4A3A] hover:bg-[#E9EFEA] transition-colors';
 
   return (
     <div
-      className={`w-full h-full min-h-screen bg-[#182B24] text-[#F4F3F0] flex flex-col justify-between relative overflow-hidden font-serif select-none`}
+      className={`relative w-full h-full min-h-[100dvh] overflow-hidden bg-[#FAF8F5] text-[#1C2820] font-sans select-none flex flex-col ${
+        showControls ? '' : 'cursor-none'
+      }`}
     >
-      {/* Floating Emoji Layer */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
+      {/* Status */}
+      <div className="relative z-10 shrink-0 h-[72px] px-10 flex items-center justify-between">
+        <span className="font-serif text-[26px] font-medium tracking-tight text-[#1C2820] truncate">{currentEvent.title}</span>
+        {votingRound.isActive ? (
+          <span className="h-10 px-4 rounded-full bg-[#E9EFEA] flex items-center gap-2.5 text-[15px] font-medium text-[#2D4A3A]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2D4A3A]" />
+            </span>
+            <span className="tabular-nums font-semibold">{roundTotalVotes}</span>
+            <span className="text-[#2D4A3A]/70">{roundTotalVotes === 1 ? 'total vote' : 'total votes'}</span>
+          </span>
+        ) : spotlightId ? (
+          <span className="h-10 px-4 rounded-full bg-[#E9EFEA] flex items-center gap-2 text-[15px] font-medium text-[#2D4A3A]">
+            <Pin className="w-3.5 h-3.5" /> Pinned
+          </span>
+        ) : null}
+      </div>
+
+      {/* The photo */}
+      <div className="relative z-10 flex-1 min-h-0 mx-10">
+        <SlideStage active={active} memories={publicMemories} />
+      </div>
+
+      {/* Who shared it, and how to join */}
+      <div className="relative z-10 shrink-0 px-10 pt-6 pb-8 flex items-end justify-between gap-10">
+        <div key={active.id} className="min-w-0 flex-1 animate-[slideFade_900ms_ease-out_both]">
+          {active.caption && (
+            <h2 className="font-serif text-[clamp(30px,3.6vw,56px)] font-medium tracking-tight leading-[1.08] line-clamp-2">
+              {active.caption}
+            </h2>
+          )}
+          <p className="mt-2 text-[clamp(15px,1.4vw,21px)] text-[#1C2820]/55 truncate">
+            By <span className="text-[#2D4A3A] font-semibold">{active.guestName}</span>
+          </p>
+        </div>
+
+        <div className="shrink-0 flex items-center gap-5 p-3 pl-6 rounded-[28px] bg-white border border-[#1C2820]/[0.06] shadow-[0_16px_50px_rgba(45,74,58,0.12)]">
+          <div className="text-right">
+            <p className="text-[15px] font-medium text-[#1C2820]/60 leading-tight">www.memorieaisle.com/join</p>
+            <p className="mt-1.5 text-[clamp(30px,3vw,44px)] font-semibold tracking-tight leading-none tabular-nums text-[#2D4A3A]">
+              {formatPin(currentEvent.code)}
+            </p>
+            <p className="mt-1.5 text-[13px] text-[#1C2820]/45 leading-tight">PIN, or scan the QR code</p>
+          </div>
+          <div className="w-[108px] h-[108px] bg-white rounded-[18px] shrink-0">
+            {qrDataUrl && <img src={qrDataUrl} alt={`QR code for ${currentEvent.title}`} className="w-full h-full object-contain" />}
+          </div>
+        </div>
+      </div>
+
+      {/* Reactions */}
+      <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
         {floatingEmojis.map((item) => (
-          <div
-            key={item.id}
-            style={{ left: `${item.left}%` }}
-            className="absolute bottom-32 text-6xl drop-shadow-2xl animate-rise"
-          >
+          <div key={item.id} style={{ left: `${item.left}%` }} className="absolute bottom-44 text-6xl animate-rise">
             {item.emoji}
           </div>
         ))}
       </div>
 
-      {/* Top Header Bar */}
-      <div className="px-8 sm:px-12 py-6 sm:py-8 flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center gap-4 sm:gap-6">
-          <span className="text-2xl sm:text-3xl">🌿</span>
-          <span className="text-2xl sm:text-4xl tracking-wide text-white font-medium">
-            {currentEvent.title}
-          </span>
-          <span className="text-white/20 text-3xl font-light mx-1 hidden sm:inline">|</span>
-          <span className="text-xs font-sans tracking-[0.25em] uppercase text-white/60 font-bold hidden sm:inline">
-            {currentEvent.date}
-          </span>
-        </div>
-        <div className="flex items-center gap-2.5 text-[11px] font-sans font-bold tracking-[0.2em] uppercase text-[#F4F3F0]">
-          <span className="w-2 h-2 rounded-full bg-[#74A886] animate-pulse"></span>
-          OUR DAY, THROUGH YOUR EYES
-        </div>
-      </div>
-
-      {/* Center Cinematic Carousel Stage */}
-      <div className="flex-1 w-full relative flex items-center justify-center z-10 px-6 sm:px-12 min-h-0">
-        {/* Left Ghost Slide */}
-        <div className="hidden lg:block absolute left-[-8%] w-[35%] h-[65%] opacity-25 blur-[2px] scale-90 rounded-[2.5rem] overflow-hidden border border-white/10 transition-all duration-700 ease-in-out">
-          {prevMemory.type === 'video' ? (
-            <video src={prevMemory.url} muted playsInline className="w-full h-full object-cover" />
-          ) : (
-            <img
-              src={prevMemory.url}
-              className="w-full h-full object-cover"
-              alt=""
-            />
+      {/* Controls fade in when the mouse moves */}
+      <div
+        className={`absolute z-30 top-4 left-1/2 -translate-x-1/2 transition-opacity duration-300 ${
+          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center gap-1 p-1.5 rounded-full bg-white/90 backdrop-blur-2xl border border-[#1C2820]/[0.08] shadow-[0_12px_40px_rgba(45,74,58,0.18)]">
+          {exitHref && (
+            <Link href={exitHref} className={controlClass} title="Back to overview" aria-label="Back to overview">
+              <X className="w-[18px] h-[18px]" />
+            </Link>
           )}
-        </div>
-
-        {/* Center Primary Slide */}
-        <div className="relative w-full max-w-4xl h-[52vh] sm:h-[58vh] rounded-[2.5rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.85)] border-[6px] border-[#25362A] z-20 transition-all duration-700 ease-in-out bg-black/40">
-          {activeMemory.type === 'video' ? (
-            <video
-              src={activeMemory.url}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-contain bg-black"
-            />
-          ) : (
-            <PhotoFrame src={activeMemory.url} alt={activeMemory.caption} />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20"></div>
-
-          {activeMemory.type === 'video' && (
-            <div className="absolute bottom-6 left-6 px-4 py-2 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold font-sans flex items-center gap-2 border border-white/15">
-              <span className="w-2 h-2 rounded-full bg-[#74A886] animate-pulse" />
-              <span>Video well-wish · {activeMemory.duration || '0:24'}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Right Ghost Slide */}
-        <div className="hidden lg:block absolute right-[-8%] w-[35%] h-[65%] opacity-25 blur-[2px] scale-90 rounded-[2.5rem] overflow-hidden border border-white/10 transition-all duration-700 ease-in-out">
-          {nextMemory.type === 'video' ? (
-            <video src={nextMemory.url} muted playsInline className="w-full h-full object-cover" />
-          ) : (
-            <img
-              src={nextMemory.url}
-              className="w-full h-full object-cover"
-              alt=""
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Bottom Editorial Quote & Tabletop QR Code */}
-      <div className="w-full px-8 sm:px-14 py-8 pb-10 flex flex-col md:flex-row items-end justify-between gap-6 z-20 bg-gradient-to-t from-[#0B1510] via-[#14241B]/95 to-transparent shrink-0">
-        {/* Left: Caption & Guest Attribution */}
-        <div className="max-w-2xl">
-          <div className="text-xs font-sans font-bold text-[#A3C9B0] uppercase tracking-[0.25em] mb-3 flex items-center gap-2">
-            <span>{isSpotlight ? 'A MOMENT IN THE SPOTLIGHT' : 'LIVE SLIDESHOW'}</span>
-          </div>
-
-          <h2 className="text-3xl sm:text-5xl lg:text-6xl text-[#FAF8F5] leading-[1.08] mb-3 font-normal drop-shadow-md">
-            {activeMemory.caption && `“${activeMemory.caption}”`}
-          </h2>
-
-          <div className="text-sm sm:text-base font-sans text-white/70 font-medium">
-            By <span className="text-[#FAF8F5] font-bold">{activeMemory.guestName}</span>
-            <span className="mx-3 opacity-50">·</span> {activeMemory.timestamp}
-          </div>
-        </div>
-
-        {/* Right: Table QR Code for Guest Scanning */}
-        <div className="flex flex-col items-end text-right shrink-0">
-          {votingRound.isActive && (
-            <div className="flex items-center gap-3 mb-4 mr-1">
-              <span className="text-3xl sm:text-4xl text-[#FAF8F5] font-medium">{roundTotalVotes}</span>
-              <span className="text-xs font-sans text-white/50 font-bold uppercase tracking-widest mt-1 ml-1">
-                {roundTotalVotes === 1 ? 'total vote' : 'total votes'}
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-6 font-sans">
-            <div className="text-right">
-              <div className="text-lg sm:text-xl font-semibold text-[#FAF8F5] leading-tight">www.memorieaisle.com/join</div>
-              <div className="flex items-baseline justify-end gap-2 mt-1">
-                <span className="text-xs text-white/60 font-bold">PIN</span>
-                <span className="text-3xl sm:text-4xl font-bold text-[#FAF8F5] leading-none tracking-wider tabular-nums">
-                  {formatPin(currentEvent.code)}
-                </span>
-              </div>
-              <div className="text-xs text-white/60 font-medium mt-1">or scan the QR code</div>
-            </div>
-
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white p-1.5 rounded-2xl shadow-2xl shrink-0 flex items-center justify-center">
-              {qrDataUrl ? (
-                <img
-                  src={qrDataUrl}
-                  alt={`QR code for ${currentEvent.title}`}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <QrCode className="w-full h-full text-[#14241B]" />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating Host Controls Overlay */}
-      <div className="absolute top-4 right-4 z-40 opacity-15 hover:opacity-100 transition-opacity">
-        <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md p-2 rounded-full border border-white/15 shadow-xl">
           {canControl && (
             <>
-              <button
-                onClick={() => eventContext.cyclePrevSlide()}
-                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-                title="Previous slide (Left Arrow)"
-              >
-                <ChevronLeft className="w-4 h-4" />
+              <button type="button" onClick={cyclePrevSlide} className={controlClass} title="Previous (Left arrow)" aria-label="Previous photo">
+                <ChevronLeft className="w-5 h-5" />
               </button>
               <button
-                onClick={handleTogglePlay}
-                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-                title={isPlaying ? 'Pause slideshow (P)' : 'Play slideshow (P)'}
+                type="button"
+                onClick={toggleSlideshowPlaying}
+                className={controlClass}
+                title={isSlideshowPlaying ? 'Pause (P)' : 'Play (P)'}
+                aria-label={isSlideshowPlaying ? 'Pause slideshow' : 'Play slideshow'}
               >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {isSlideshowPlaying ? <Pause className="w-[18px] h-[18px]" /> : <Play className="w-[18px] h-[18px]" />}
               </button>
-              <button
-                onClick={handleNextSlide}
-                className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-                title="Next slide (Right Arrow / Space)"
-              >
-                <ChevronRight className="w-4 h-4" />
+              <button type="button" onClick={cycleNextSlide} className={controlClass} title="Next (Right arrow or Space)" aria-label="Next photo">
+                <ChevronRight className="w-5 h-5" />
               </button>
-              <div className="w-px h-4 bg-white/20 mx-1" />
             </>
           )}
-          <button
-            onClick={handleToggleFullscreen}
-            className="p-2 rounded-full hover:bg-white/20 text-white transition-colors"
-            title="Toggle Fullscreen"
-          >
-            <Maximize2 className="w-4 h-4" />
+          <button type="button" onClick={toggleFullscreen} className={controlClass} title="Full screen" aria-label="Full screen">
+            <Maximize2 className="w-[18px] h-[18px]" />
           </button>
         </div>
       </div>
     </div>
   );
 }
-

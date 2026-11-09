@@ -8,13 +8,10 @@ import { useEvent } from '@/context/EventContext';
 
 export default function JoinPage() {
   const router = useRouter();
-  const { currentEvent, guestName, joinCelebration, hostUser, hasJoined, leaveAsGuest } = useEvent();
+  const { currentEvent, guestName, setGuestName, triggerToast, joinCelebration, hostUser, hasJoined, leaveAsGuest } = useEvent();
   const [nameInput, setNameInput] = useState(guestName || '');
   const [nameError, setNameError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  // Guests who already joined see a welcome-back card instead of the name form
-  const [changingName, setChangingName] = useState(false);
-  const showWelcomeBack = hasJoined && !hostUser && !changingName;
 
   useEffect(() => {
     if (guestName) setNameInput(guestName);
@@ -33,6 +30,73 @@ export default function JoinPage() {
   };
 
   const meta = currentEvent.date;
+
+  // Home for a guest who has already joined: just their name, ready to change
+  if (hasJoined && !hostUser && !submitting) {
+    const trimmed = nameInput.trim();
+    const changed = trimmed.length > 0 && trimmed !== guestName;
+    const saveName = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!trimmed) {
+        setNameError('Add your name so the couple knows who’s sharing.');
+        return;
+      }
+      if (!changed) return;
+      setNameError('');
+      setGuestName(trimmed);
+      triggerToast('Name updated', 'New photos will show this name');
+    };
+    return (
+      <div className="flex-1 w-full max-w-md mx-auto px-6 pt-10 md:pt-16 pb-28 animate-fade-up">
+        <p className="text-[13px] font-medium text-[#1C2820]/55">{currentEvent.title}</p>
+        <h1 className="font-serif text-[40px] leading-[1.05] font-medium tracking-tight text-[#1C2820] mt-1 break-words">
+          Hi, {guestName}
+        </h1>
+
+        <form onSubmit={saveName} className="mt-8 space-y-3">
+          <label htmlFor="guest-name" className="block text-[13px] font-semibold text-[#1C2820]">
+            Your name
+          </label>
+          <input
+            id="guest-name"
+            type="text"
+            autoComplete="name"
+            autoCapitalize="words"
+            enterKeyHint="done"
+            value={nameInput}
+            onChange={(e) => {
+              setNameInput(e.target.value);
+              if (nameError) setNameError('');
+            }}
+            placeholder="Your name"
+            className={`w-full h-14 px-5 rounded-2xl bg-white border text-[17px] font-medium text-[#1C2820] placeholder:text-[#1C2820]/35 focus:outline-none focus:ring-4 transition-all ${
+              nameError ? 'border-red-400 focus:ring-red-100' : 'border-[#1C2820]/12 focus:border-[#2D4A3A] focus:ring-[#2D4A3A]/12'
+            }`}
+          />
+          <p className={`px-1 text-[13px] ${nameError ? 'text-red-600 font-medium' : 'text-[#1C2820]/45'}`}>
+            {nameError || 'Shown next to the photos you share.'}
+          </p>
+          <button
+            type="submit"
+            disabled={!changed}
+            className="w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center shadow-[0_10px_30px_rgba(45,74,58,0.28)] disabled:opacity-40 disabled:shadow-none press"
+          >
+            Save name
+          </button>
+        </form>
+
+        <div className="mt-5 flex items-center justify-center gap-5 text-[14px]">
+          <Link href={`/user/${currentEvent.code}/gallery`} className="font-medium text-[#2D4A3A] py-2 press">
+            Back to the gallery
+          </Link>
+          <span className="w-1 h-1 rounded-full bg-[#1C2820]/25" />
+          <button type="button" onClick={leaveAsGuest} className="font-medium text-[#1C2820]/55 py-2 press">
+            Not {guestName}? Leave
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col md:items-center md:justify-center md:py-12 md:px-6">
@@ -63,40 +127,14 @@ export default function JoinPage() {
         <div className="relative -mt-7 flex-1 rounded-t-[28px] md:rounded-none bg-[#FAF8F5] px-6 pt-8 pb-10 space-y-7">
           <div className="space-y-2 animate-fade-up" style={{ animationDelay: '60ms' }}>
             <h2 className="font-serif text-[30px] leading-tight font-medium text-[#1C2820]">
-              {showWelcomeBack ? `Welcome back, ${guestName}.` : 'Our day. Your eyes.'}
+              Our day. Your eyes.
             </h2>
             <p className="text-[15px] leading-relaxed text-[#1C2820]/65">
-              {showWelcomeBack
-                ? 'Pick up where you left off — your photos and votes are right where you left them.'
-                : 'Share your photos and well-wishes straight from your phone. No app, no sign-up.'}
+              Share your photos straight from your phone. No app, no sign-up.
             </p>
           </div>
 
-          {showWelcomeBack ? (
-            <div className="space-y-3 animate-fade-up" style={{ animationDelay: '120ms' }}>
-              <Link
-                href={`/user/${currentEvent.code}/gallery`}
-                className="w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] press"
-              >
-                <span>Continue to the celebration</span>
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <div className="flex items-center justify-center gap-5 pt-1 text-[14px]">
-                <button
-                  type="button"
-                  onClick={() => setChangingName(true)}
-                  className="font-medium text-[#2D4A3A] py-2 press"
-                >
-                  Change name
-                </button>
-                <span className="w-1 h-1 rounded-full bg-[#1C2820]/25" />
-                <button type="button" onClick={leaveAsGuest} className="font-medium text-[#1C2820]/55 py-2 press">
-                  Not {guestName}? Leave
-                </button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 animate-fade-up" style={{ animationDelay: '120ms' }}>
+                      <form onSubmit={handleSubmit} className="space-y-4 animate-fade-up" style={{ animationDelay: '120ms' }}>
               {hostUser && (
                 <div className="p-4 rounded-2xl bg-[#E9EFEA] text-[13px] text-[#1C2820]/75 leading-relaxed">
                   You’re signed in as host <span className="font-semibold">{hostUser.email}</span>. Joining as a guest
@@ -136,24 +174,13 @@ export default function JoinPage() {
                 disabled={submitting}
                 className="w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] disabled:opacity-60 press"
               >
-                <span>{hasJoined ? 'Save & continue' : 'Join the celebration'}</span>
+                <span>Join the celebration</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
-              {hasJoined && changingName && (
-                <button
-                  type="button"
-                  onClick={() => setChangingName(false)}
-                  className="w-full py-2 text-[14px] font-medium text-[#1C2820]/55 press"
-                >
-                  Cancel
-                </button>
-              )}
             </form>
-          )}
 
           {/* What you can do */}
-          {!showWelcomeBack && (
-            <ul className="grid grid-cols-3 gap-2 pt-2 animate-fade-up" style={{ animationDelay: '180ms' }}>
+                      <ul className="grid grid-cols-3 gap-2 pt-2 animate-fade-up" style={{ animationDelay: '180ms' }}>
               {[
                 { icon: Camera, label: 'Share photos' },
                 { icon: Images, label: 'Live gallery' },
@@ -165,7 +192,6 @@ export default function JoinPage() {
                 </li>
               ))}
             </ul>
-          )}
         </div>
       </div>
     </div>

@@ -1,155 +1,69 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Heart, Film, Maximize2 } from 'lucide-react';
+import { Pin } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
-import PhotoFrame from '@/components/PhotoFrame';
+import SlideStage from '@/components/SlideStage';
 
+const REACTION_EMOJIS = ['❤️', '🥂', '✨', '😂', '🎉'];
+
+/**
+ * The live slideshow on a guest's phone: the same photo as the big screen, plus reactions.
+ * Sized to fit the screen between the top bar and the tab bar, so nothing needs scrolling.
+ */
 export default function SlideshowPage() {
-  const {
-    currentEvent,
-    publicMemories,
-    activeSlideMemory,
-    spotlightId,
-    getPrompt,
-    reactionCount,
-    floatingEmojis,
-    sendReaction,
-  } = useEvent();
+  const { publicMemories, activeSlideMemory: active, spotlightId, floatingEmojis, sendReaction } = useEvent();
 
-  if (!activeSlideMemory) {
-    return (
-      <div className="flex-1 bg-[#14241B] text-white flex items-center justify-center p-8">
-        <p className="font-serif text-2xl">Awaiting memories to roll...</p>
-      </div>
-    );
-  }
-
-  const promptObj = getPrompt(activeSlideMemory.promptId);
+  if (!active) return null;
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-[#182B24] to-[#0D1510] text-[#FAF8F5] flex flex-col justify-between relative overflow-hidden select-none min-h-[calc(100vh-4rem)]">
-      {/* Floating Emoji Layer */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-30">
+    <div className="relative flex-none select-none flex flex-col md:flex-row md:items-stretch md:gap-10 w-full max-w-6xl mx-auto px-4 md:px-8 pt-3 md:pt-8 md:pb-8 h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-4.5rem-env(safe-area-inset-bottom))] md:h-[calc(100dvh-4rem)]">
+      {/* The photo */}
+      <div className="relative flex-1 min-h-0 min-w-0">
+        <SlideStage active={active} memories={publicMemories} rounded="rounded-[22px] md:rounded-[28px]" />
+        {spotlightId && (
+          <span className="absolute top-2 left-2 h-8 px-3 rounded-full bg-white/90 backdrop-blur-xl text-[13px] font-medium text-[#2D4A3A] flex items-center gap-1.5 shadow-sm">
+            <Pin className="w-3 h-3" /> Pinned
+          </span>
+        )}
+      </div>
+
+      {/* Who shared it, and reactions */}
+      <div className="shrink-0 md:w-[320px] md:flex md:flex-col md:justify-center pt-4 pb-3 md:py-0">
+        <div key={active.id} className="animate-[slideFade_900ms_ease-out_both] min-h-[3.25rem]">
+          {active.caption && (
+            <p className="font-serif text-[24px] md:text-[34px] font-medium tracking-tight leading-[1.15] text-[#1C2820] line-clamp-2">
+              {active.caption}
+            </p>
+          )}
+          <p className="mt-1 text-[14px] text-[#1C2820]/55 truncate">
+            By <span className="font-semibold text-[#2D4A3A]">{active.guestName}</span>
+          </p>
+        </div>
+
+        <p className="mt-4 md:mt-8 text-[13px] font-medium text-[#1C2820]/55">Send live reactions to the screen</p>
+        <div className="mt-2 grid grid-cols-5 gap-2">
+          {REACTION_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => sendReaction(emoji)}
+              aria-label={`React with ${emoji}`}
+              className="h-12 rounded-2xl bg-white border border-[#1C2820]/[0.07] shadow-[0_2px_8px_rgba(45,74,58,0.06)] text-[24px] flex items-center justify-center press"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Reactions floating up */}
+      <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
         {floatingEmojis.map((item) => (
-          <div
-            key={item.id}
-            style={{ left: `${item.left}%` }}
-            className="absolute bottom-32 text-4xl sm:text-5xl drop-shadow-2xl animate-rise"
-          >
+          <div key={item.id} style={{ left: `${item.left}%` }} className="absolute bottom-32 text-4xl md:text-5xl animate-rise">
             {item.emoji}
           </div>
         ))}
-      </div>
-
-      {/* Top Bar inside Slideshow */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between border-b border-white/10 relative z-20">
-        <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full bg-[#74A886] animate-pulse" />
-          <span className="text-xs font-bold uppercase tracking-widest text-[#9BC4A8]">
-            {spotlightId ? 'Pinned by the hosts' : 'Live Rolling Slideshow'}
-          </span>
-        </div>
-        {/* Guests only watch: pinning, pausing and skipping are host controls (dashboard / projector) */}
-      </div>
-
-      {/* Main Slideshow Stage */}
-      <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-1 flex flex-col md:flex-row items-center justify-center gap-8 relative z-20">
-        {/* Photo / Video Container */}
-        <div className="w-full md:w-1/2 aspect-[4/3] sm:aspect-square md:aspect-[4/5] max-h-[520px] rounded-3xl overflow-hidden shadow-2xl border-4 border-[#25362A] relative shrink-0 bg-black/40">
-          {activeSlideMemory.type === 'video' ? (
-            <video
-              src={activeSlideMemory.url}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-contain bg-black transition-all duration-1000 ease-out"
-            />
-          ) : (
-            <PhotoFrame src={activeSlideMemory.url} alt={activeSlideMemory.caption} />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />
-
-          <span className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1.5 shadow-md border border-white/10">
-            <span>{promptObj.icon}</span>
-            <span>{spotlightId ? 'Couple Spotlight' : promptObj.label}</span>
-          </span>
-
-          {activeSlideMemory.type === 'video' && (
-            <span className="absolute bottom-4 left-4 px-3 py-1.5 rounded-xl bg-black/80 backdrop-blur-md text-white text-xs font-bold flex items-center gap-1.5 border border-white/10">
-              <Film className="w-4 h-4 text-[#9BC4A8]" />
-              <span>Video well-wish · {activeSlideMemory.duration || '0:24'}</span>
-            </span>
-          )}
-        </div>
-
-        {/* Narrative & Reactions */}
-        <div className="w-full md:w-1/2 space-y-6 flex flex-col justify-center">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#9BC4A8]">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Candid Memory</span>
-            </div>
-
-            <blockquote className="font-serif text-3xl sm:text-4xl lg:text-5xl font-medium leading-tight text-white drop-shadow-sm">
-              {activeSlideMemory.caption && `“${activeSlideMemory.caption}”`}
-            </blockquote>
-
-            {activeSlideMemory.subCaption && (
-              <p className="text-sm sm:text-base text-white/70 font-medium leading-relaxed">
-                {activeSlideMemory.subCaption}
-              </p>
-            )}
-
-            <div className="text-xs sm:text-sm text-[#9BC4A8] font-bold uppercase tracking-wider pt-2">
-              By {activeSlideMemory.guestName} · {activeSlideMemory.timestamp}
-            </div>
-          </div>
-
-          {/* Real-time Emoji Reactions Bar */}
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md space-y-3">
-            <div className="flex items-center justify-between text-xs font-semibold text-white/75">
-              <span>Send live reactions to the screen</span>
-              <span>{reactionCount.toLocaleString()} total loves</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {['❤️', '🥂', '✨', '😂', '🎉'].map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => sendReaction(emoji)}
-                  className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/25 active:scale-90 text-2xl flex items-center justify-center transition-all border border-white/5 shadow-sm"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Queue Strip */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 border-t border-white/10 relative z-20">
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white/40 shrink-0">
-            In the slideshow:
-          </span>
-          {/* Read-only for guests: shows what's rolling, doesn't change it */}
-          {publicMemories.map((m) => {
-            const isCurrent = m.id === activeSlideMemory.id;
-            return (
-              <div
-                key={m.id}
-                className={`relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
-                  isCurrent ? 'border-white scale-110 shadow-lg' : 'border-white/20 opacity-60'
-                }`}
-              >
-                <img src={m.url} alt="" className="w-full h-full object-cover" />
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

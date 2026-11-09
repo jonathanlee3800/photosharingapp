@@ -26,8 +26,8 @@ export default function Navbar() {
 
   const base = `/user/${currentEvent.code}`;
 
-  // The guest join/home screen has a full-bleed cover photo, so it runs edge to edge with no bar
-  if (isGuest && decodeURIComponent(pathname || '').toLowerCase() === base.toLowerCase()) {
+  // The join screen has a full-bleed cover photo, so it runs edge to edge with no bar
+  if (isGuest && !hasJoined && decodeURIComponent(pathname || '').toLowerCase() === base.toLowerCase()) {
     return null;
   }
 
@@ -115,12 +115,12 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* Guest avatar (phones): opens Home, where they can change name or leave */}
+            {/* Guest avatar: opens the page where they can change their name or leave */}
             {isGuest && hasJoined && inGuestArea && (
               <Link
                 href={base}
                 aria-label={`Signed in as ${guestName}. Change name`}
-                className="md:hidden w-9 h-9 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-[13px] font-bold flex items-center justify-center border border-[#2D4A3A]/15 press"
+                className="w-9 h-9 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-[13px] font-bold flex items-center justify-center border border-[#2D4A3A]/15 press"
               >
                 {initials}
               </Link>
