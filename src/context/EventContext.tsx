@@ -1229,7 +1229,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   // Deletes a category AND permanently deletes every photo/video in it (DB rows, votes, R2 files)
   const deletePrompt = async (promptId: string) => {
     if (votingRound.isOpen && votingRound.promptId === promptId) {
-      triggerToast('Close the live round first', 'This tag is being voted on right now');
+      triggerToast('Close the live contest first', 'This tag is being voted on right now');
       return;
     }
 
@@ -1292,17 +1292,22 @@ export function EventProvider({ children }: { children: ReactNode }) {
   // Host: open a voting round on the chosen tag (optional time limit)
   const startVotingRound = async (promptId: string, durationMinutes: number | null) => {
     if (!promptId) {
-      triggerToast('Pick a tag for the round first');
+      triggerToast('Select a photo tag for the contest first');
       return;
     }
     const endsAt = durationMinutes ? new Date(Date.now() + durationMinutes * 60_000).toISOString() : null;
     const patch = { votingOpen: true, votingEndsAt: endsAt, votingPromptId: promptId, votingClosedAt: null };
     setEvents((prev) => prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, ...patch } : ev)));
     setNowMs(Date.now());
-    triggerToast(
-      'Live voting round started',
-      durationMinutes ? `Guests can vote for ${durationMinutes} minutes` : 'Guests can vote until you close the round'
-    );
+    const durationDescription = durationMinutes
+      ? durationMinutes === 1
+        ? 'Guests can vote for 1 minute'
+        : durationMinutes >= 60 && durationMinutes % 60 === 0
+          ? `Guests can vote for ${durationMinutes / 60} hour${durationMinutes > 60 ? 's' : ''}`
+          : `Guests can vote for ${durationMinutes} minutes`
+      : 'Guests can vote until you close the contest';
+
+    triggerToast('Live photo contest started', durationDescription);
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
       const { error } = await supabase
@@ -1311,7 +1316,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         .eq('id', currentEvent.id);
       if (error) {
         console.warn('startVotingRound error:', error);
-        triggerToast('Could not start the round', error.message);
+        triggerToast('Could not start the contest', error.message);
         if (hostUser) fetchHostEvents(hostUser.id);
       }
     }
@@ -1332,7 +1337,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       )
     );
     triggerToast(
-      'Voting round closed',
+      'Photo contest closed',
       winner && winner.votes > 0 ? `Winner: "${winner.caption.slice(0, 40)}" by ${winner.guestName}` : 'No votes were cast'
     );
 
@@ -1343,7 +1348,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         .eq('id', currentEvent.id);
       if (error) {
         console.warn('closeVotingRound error:', error);
-        triggerToast('Could not close the round', error.message);
+        triggerToast('Could not close the contest', error.message);
         if (hostUser) fetchHostEvents(hostUser.id);
       }
     }
@@ -1691,10 +1696,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (!target) return;
     if (!canVoteOn(target)) {
       triggerToast(
-        votingRound.isActive ? 'This photo isn’t in the live round' : 'Voting isn’t open right now',
+        votingRound.isActive ? 'This photo isn’t in the live contest' : 'Voting isn’t open right now',
         votingRound.isActive
           ? `Vote for photos in "${getPrompt(votingRound.promptId).label}"`
-          : 'The hosts will open a live voting round soon'
+          : 'The hosts will start a live photo contest soon'
       );
       return;
     }

@@ -6,8 +6,15 @@ import { Heart, Trophy, Clock, Lock, Camera, Check } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import confetti from 'canvas-confetti';
 
-const formatCountdown = (seconds: number) =>
-  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+const formatCountdown = (seconds: number) => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
 
 export default function VotePage() {
   const { currentEvent, publicMemories, votingRound, getPrompt, toggleVote } = useEvent();
@@ -38,9 +45,9 @@ export default function VotePage() {
         <div className="w-20 h-20 rounded-full bg-[#E9EFEA] text-[#2D4A3A] flex items-center justify-center">
           <Trophy className="w-9 h-9" strokeWidth={1.6} />
         </div>
-        <h1 className="font-serif text-[34px] leading-tight font-medium text-[#1C2820] mt-6">No live round right now</h1>
+        <h1 className="font-serif text-[34px] leading-tight font-medium text-[#1C2820] mt-6">No live contest right now</h1>
         <p className="text-[15px] leading-relaxed text-[#1C2820]/55 mt-2 max-w-xs">
-          The hosts will open a vote during the celebration. This page updates by itself when it starts.
+          The hosts will start a photo contest during the celebration. This page updates automatically when it starts.
         </p>
         <Link
           href={`/user/${currentEvent.code}/gallery`}
@@ -65,7 +72,7 @@ export default function VotePage() {
         <p className="text-[15px] text-[#1C2820]/55">
           {votingRound.isActive
             ? 'You have one vote — tap your favourite. Tap another photo to move your vote.'
-            : 'Voting for this round has ended. The hosts will reveal the winner shortly.'}
+            : 'Voting for this contest has ended. The hosts will reveal the winner shortly.'}
         </p>
       </header>
 
@@ -98,12 +105,13 @@ export default function VotePage() {
       {/* Candidates */}
       {contenders.length === 0 ? (
         <div className="py-14 text-center flex flex-col items-center gap-3">
-          <p className="font-serif text-[26px] text-[#1C2820]">No photos with this tag yet</p>
+          <p className="font-serif text-[26px] text-[#1C2820]">No photos entered for this contest yet</p>
+          <p className="text-[15px] text-[#1C2820]/60 max-w-sm">Share a photo under this tag to enter this round!</p>
           <Link
             href={`/user/${currentEvent.code}/upload`}
-            className="h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"
+            className="mt-1 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"
           >
-            <Camera className="w-5 h-5" /> Share one
+            <Camera className="w-5 h-5" /> Share a photo
           </Link>
         </div>
       ) : (

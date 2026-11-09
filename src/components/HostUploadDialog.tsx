@@ -214,9 +214,12 @@ export default function HostUploadDialog({
             </div>
           )}
 
-          {/* Tag */}
-          <div className="space-y-2">
-            <span className="block text-xs font-bold uppercase tracking-wide text-[#1C2820]">Tag</span>
+          {/* Photo Tag */}
+          <div className="space-y-1.5">
+            <div>
+              <span className="block text-xs font-bold uppercase tracking-wide text-[#1C2820]">Photo Tag</span>
+              <p className="text-[11px] text-[#1C2820]/60 font-medium mt-0.5">Select which tag this belongs to</p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {prompts.map((p) => {
                 const active = promptId === p.id;
@@ -251,7 +254,7 @@ export default function HostUploadDialog({
               disabled={uploading}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Write something about these moments…"
-              className="w-full rounded-2xl border border-[#1C2820]/15 p-4 text-sm font-medium text-[#1C2820] placeholder:text-[#1C2820]/35 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/15 resize-none"
+              className="w-full rounded-2xl border border-[#1C2820]/15 p-4 text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/35 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/15 resize-none"
             />
           </div>
 

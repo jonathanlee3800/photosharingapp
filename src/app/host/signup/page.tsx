@@ -79,7 +79,7 @@ export default function HostSignUpPage() {
             Create Host Account
           </h1>
           <p className="text-xs text-[#1C2820]/65 font-medium">
-            Set up your wedding celebration space, create photo prompts, and manage your live displays.
+            Set up your wedding celebration space, create photo tags, and manage your live displays.
           </p>
         </div>
 
@@ -159,7 +159,7 @@ export default function HostSignUpPage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Simone & Joshua"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-medium focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/20 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/40 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -176,7 +176,7 @@ export default function HostSignUpPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="host@wedding.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-medium focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/20 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/40 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -193,7 +193,7 @@ export default function HostSignUpPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 6 characters"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-medium focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#1C2820]/20 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/40 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -225,7 +225,7 @@ export default function HostSignUpPage() {
             </Link>
           </div>
           <div>
-            Attending as a guest? Scan the QR code at your table or open the link from your hosts.
+            Attending as a guest? Scan the event QR code or open the link from your hosts.
           </div>
         </div>
       </div>

@@ -61,7 +61,7 @@ export default function UserEventLayout({
               <span className="font-mono font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">
                 {rawEventId}
               </span>
-              . Please check your table QR code or ask the hosts for the right link.
+              . Please check the QR code or ask the hosts for the right link.
             </p>
           </div>
         </div>

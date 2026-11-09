@@ -91,7 +91,7 @@ function HostLoginContent() {
             Sign in to your event
           </h1>
           <p className="text-xs text-[#1C2820]/65 font-medium">
-            Manage your wedding QR codes, live screen spotlights, tags, and moderation vault.
+            Manage your event QR codes, live projector feeds, photo tags, and gallery vault.
           </p>
         </div>
 
@@ -161,7 +161,7 @@ function HostLoginContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="e.g. you@example.com"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 bg-white text-xs sm:text-sm font-semibold text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/40 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -177,7 +177,7 @@ function HostLoginContent() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1C2820]/20 bg-white text-xs sm:text-sm font-semibold text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/40 focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -208,7 +208,7 @@ function HostLoginContent() {
             </Link>
           </div>
           <div>
-            Attending as a guest? Scan the QR code at your table or open the link from your hosts.
+            Attending as a guest? Scan the event QR code or open the link from your hosts.
           </div>
         </div>
       </div>

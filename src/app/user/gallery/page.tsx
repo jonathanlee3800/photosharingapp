@@ -66,7 +66,7 @@ export default function GalleryPage() {
           e.stopPropagation();
           toggleVote(item.id);
         }}
-        aria-label={votable ? (item.votedByMe ? 'Remove vote' : 'Vote') : 'Voting opens during a live round'}
+        aria-label={votable ? (item.votedByMe ? 'Remove vote' : 'Vote') : 'Voting opens during a live photo contest'}
         aria-pressed={item.votedByMe}
         className={`press inline-flex items-center gap-1 rounded-full font-semibold ${
           variant === 'tile' ? 'h-8 px-2.5 text-[12px]' : 'h-10 px-4 text-[14px]'
@@ -124,11 +124,15 @@ export default function GalleryPage() {
               <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#9BC4A8] ring-2 ring-[#2D4A3A] animate-pulse" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-semibold leading-tight">Live vote is open</span>
+              <span className="block text-[15px] font-semibold leading-tight">Live Photo Contest is open</span>
               <span className="block text-[13px] text-white/75 truncate">
                 {roundPrompt.icon} {roundPrompt.label}
                 {votingRound.secondsLeft !== null &&
-                  ` · ${Math.floor(votingRound.secondsLeft / 60)}:${String(votingRound.secondsLeft % 60).padStart(2, '0')} left`}
+                  ` · ${
+                    votingRound.secondsLeft >= 3600
+                      ? `${Math.floor(votingRound.secondsLeft / 3600)}:${String(Math.floor((votingRound.secondsLeft % 3600) / 60)).padStart(2, '0')}:${String(votingRound.secondsLeft % 60).padStart(2, '0')}`
+                      : `${Math.floor(votingRound.secondsLeft / 60)}:${String(votingRound.secondsLeft % 60).padStart(2, '0')}`
+                  } left`}
               </span>
             </span>
             <span className="text-[14px] font-semibold flex items-center gap-0.5 shrink-0">
@@ -350,7 +354,7 @@ export default function GalleryPage() {
           <p className="text-[15px] text-[#1C2820]/55 max-w-xs">
             {searchQuery
               ? `No moments matched "${searchQuery}". Try searching by a guest’s name or words from a caption.`
-              : 'Be the first to share a moment with this tag.'}
+              : 'No photos shared under this tag yet. Be the first to share a photo!'}
           </p>
           {searchQuery ? (
             <button

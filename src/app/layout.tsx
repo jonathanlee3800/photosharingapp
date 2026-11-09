@@ -27,7 +27,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Memorie Aisle — Wedding Photo Sharing Platform',
   description:
-    'Web-based guest photo sharing, live rolling slideshow, voting rounds, and owner archive downloads.',
+    'Web-based guest photo sharing, live rolling slideshow, live photo contests, and owner archive downloads.',
   appleWebApp: {
     capable: true,
     title: 'Memorie Aisle',
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 5,
+  maximumScale: 1,
   // Let the layout extend under the iPhone notch / home indicator (padded with safe-area insets)
   viewportFit: 'cover',
   themeColor: '#FAF8F5',

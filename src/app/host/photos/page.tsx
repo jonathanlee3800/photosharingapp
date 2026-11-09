@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Download,
   Trash2,
@@ -18,6 +18,9 @@ import {
   Play,
   Upload,
   ChevronDown,
+  Layers,
+  Info,
+  RotateCcw,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
@@ -46,7 +49,56 @@ export default function HostPhotosPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
   const searchPlaceholder = useSearchPlaceholder();
+
+  // Close tag dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
+        setIsTagDropdownOpen(false);
+      }
+    }
+    if (isTagDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isTagDropdownOpen]);
+
+  const totalCount = memories.length;
+  const publicCount = memories.filter((m) => !m.isPrivate).length;
+  const privateCount = memories.filter((m) => m.isPrivate).length;
+
+  const VISIBILITY_TABS = [
+    {
+      id: 'all' as const,
+      label: 'All Memories',
+      mobileLabel: 'All',
+      count: totalCount,
+      icon: Layers,
+      description: 'Complete archive of every photo & video uploaded by guests and hosts.',
+    },
+    {
+      id: 'live' as const,
+      label: 'Visible in Gallery',
+      mobileLabel: 'Public',
+      count: publicCount,
+      icon: Eye,
+      description: 'Public memories visible on guests’ phones and playing on the live venue projector.',
+    },
+    {
+      id: 'private' as const,
+      label: 'Private Vault',
+      mobileLabel: 'Private',
+      count: privateCount,
+      icon: Lock,
+      description: 'Host-only memories — hidden from live screens, guests, and the photo contest.',
+    },
+  ];
+
+  const activeTabObj = VISIBILITY_TABS.find((t) => t.id === filterTab) || VISIBILITY_TABS[0];
+  const selectedPrompt = prompts.find((p) => p.id === categoryFilter);
 
   // Host upload window (choose files, category, caption)
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -102,7 +154,7 @@ export default function HostPhotosPage() {
 
   return (
     <HostAuthGuard>
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8 space-y-8 pb-28 sm:pb-12">
         <HostEventHeader active="photos" />
 
       {/* Page Title + host upload */}
@@ -161,46 +213,71 @@ export default function HostPhotosPage() {
         );
       })()}
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-6 border-b border-[#1C2820]/10 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'all', label: 'All memories', count: memories.length },
-          {
-            id: 'live',
-            label: 'Live in gallery',
-            count: memories.filter((m) => !m.isPrivate).length,
-          },
-          {
-            id: 'private',
-            label: 'Private vault',
-            count: memories.filter((m) => m.isPrivate).length,
-          },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setFilterTab(tab.id as any)}
-            className={`pb-4 text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
-              filterTab === tab.id
-                ? 'border-[#2D4A3A] text-[#2D4A3A]'
-                : 'border-transparent text-[#1C2820]/60 hover:text-[#1C2820]'
-            }`}
+      {/* Visibility Segmented Control Bar (Apple HIG Segmented Navigation) */}
+      <div className="space-y-2.5 sm:space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+          {/* Apple-style Segmented Control - immune to overflow on 320px screens */}
+          <div
+            role="tablist"
+            aria-label="Photo visibility filter"
+            className="w-full sm:w-auto inline-flex p-1 bg-[#1C2820]/5 rounded-2xl border border-[#1C2820]/10 gap-1 shadow-inner max-w-full overflow-hidden"
           >
-            <span>{tab.label}</span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                filterTab === tab.id
-                  ? 'bg-[#E9EFEA] text-[#2D4A3A]'
-                  : 'bg-[#1C2820]/5 text-[#1C2820]/60'
-              }`}
-            >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+            {VISIBILITY_TABS.map((tab) => {
+              const TabIcon = tab.icon;
+              const isActive = filterTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setFilterTab(tab.id)}
+                  className={`flex-1 sm:flex-initial min-w-0 flex items-center justify-center gap-1 sm:gap-2 px-1.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all min-h-[40px] sm:min-h-[42px] select-none ${
+                    isActive
+                      ? 'bg-white text-[#1C2820] shadow-sm border border-[#1C2820]/10'
+                      : 'text-[#1C2820]/65 hover:text-[#1C2820] hover:bg-black/5'
+                  }`}
+                >
+                  <TabIcon
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isActive
+                        ? tab.id === 'private'
+                          ? 'text-amber-600'
+                          : 'text-[#2D4A3A]'
+                        : 'opacity-70'
+                    }`}
+                  />
+                  <span className="hidden sm:inline truncate">{tab.label}</span>
+                  <span className="sm:hidden truncate">{tab.mobileLabel}</span>
+                  <span
+                    className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      isActive
+                        ? 'bg-[#E9EFEA] text-[#2D4A3A]'
+                        : 'bg-[#1C2820]/5 text-[#1C2820]/60'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Context helper pill (Desktop) */}
+          <div className="hidden lg:flex items-center gap-2 text-xs text-[#1C2820]/70 bg-[#FAF8F5] border border-[#1C2820]/10 px-3.5 py-2 rounded-xl">
+            <Info className="w-3.5 h-3.5 text-[#2D4A3A] shrink-0" />
+            <span>{activeTabObj.description}</span>
+          </div>
+        </div>
+
+        {/* Quick Context helper pill (Mobile / Tablet) */}
+        <div className="flex lg:hidden items-center gap-2 text-xs text-[#1C2820]/70 bg-[#FAF8F5] border border-[#1C2820]/10 px-3 py-2 rounded-xl">
+          <Info className="w-3.5 h-3.5 text-[#2D4A3A] shrink-0" />
+          <span className="leading-snug">{activeTabObj.description}</span>
+        </div>
       </div>
 
-      {/* Search & Actions Bar (Full 12-column width Search Bar with controls beneath) */}
-      <div className="space-y-3.5">
+      {/* Search & Actions Bar (Full width Search with standardized controls beneath) */}
+      <div className="space-y-3">
         {/* Full-width Search Bar */}
         <div className="relative w-full">
           <Search className="w-4 h-4 sm:w-5 sm:h-5 absolute left-4 top-1/2 -translate-y-1/2 text-[#1C2820]/40 pointer-events-none" />
@@ -209,7 +286,7 @@ export default function HostPhotosPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full h-12 pl-11 sm:pl-12 pr-10 rounded-2xl border border-[#1C2820]/15 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-[#1C2820]/40 focus:outline-none focus:ring-2 focus:ring-[#2D4A3A]/20 focus:border-[#2D4A3A] shadow-sm transition-all [&::-webkit-search-cancel-button]:hidden"
+            className="w-full h-12 pl-11 sm:pl-12 pr-10 rounded-2xl border border-[#1C2820]/15 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal placeholder:text-[#1C2820]/40 focus:outline-none focus:ring-2 focus:ring-[#2D4A3A]/20 focus:border-[#2D4A3A] shadow-sm transition-all [&::-webkit-search-cancel-button]:hidden"
           />
           {searchQuery && (
             <button
@@ -223,32 +300,175 @@ export default function HostPhotosPage() {
           )}
         </div>
 
-        {/* Controls row: Tag Filter & Results Count on Left, Select All on Right */}
+        {/* Controls row: Tag Filter & Select All */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-          {/* Top on mobile, Left on desktop: Dropdown & Select All (or Count) */}
-          <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto min-w-0">
-            {/* Responsive All Tags Dropdown: stays natural width when space is plenty, shrinks fluidly at the exact same rate as the search bar when resolution compresses */}
-            <div className="relative flex-1 sm:flex-initial min-w-0 sm:w-auto">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full sm:w-auto appearance-none h-10 pl-3.5 pr-8 rounded-xl border border-[#1C2820]/15 text-xs font-semibold bg-white text-[#1C2820] focus:outline-none focus:border-[#2D4A3A] shadow-sm cursor-pointer truncate max-w-full sm:max-w-xs transition-all"
+          {/* Left on desktop, Top on mobile: Dropdown & Mobile Select All */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto min-w-0">
+            {/* Custom Standardized Photo Tag Dropdown - button width matches popover options 1:1 on desktop, stacked two-line layout without truncation */}
+            <div ref={tagDropdownRef} className="relative flex-1 sm:flex-initial sm:w-72 min-w-0">
+              <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={isTagDropdownOpen}
+                onClick={() => setIsTagDropdownOpen((prev) => !prev)}
+                className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border bg-white text-left flex items-center justify-between gap-2.5 shadow-sm transition-all focus:outline-none ${
+                  isTagDropdownOpen
+                    ? 'border-[#2D4A3A] ring-2 ring-[#2D4A3A]/10'
+                    : 'border-[#1C2820]/15 hover:border-[#2D4A3A]/40'
+                }`}
               >
-                <option value="all">All tags</option>
-                {prompts.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.icon ? `${p.icon} ` : ''}{p.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-[#1C2820]/40 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span className="text-base shrink-0 leading-none">
+                    {categoryFilter === 'all' ? '🏷️' : selectedPrompt?.icon || '🏷️'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs sm:text-sm font-bold text-[#1C2820] leading-snug break-words">
+                      {categoryFilter === 'all' ? 'All Photo Tags' : selectedPrompt?.label}
+                    </div>
+                    <div className="text-[10px] sm:text-[11px] text-[#1C2820]/55 font-medium">
+                      {categoryFilter === 'all'
+                        ? `${memories.length} ${memories.length === 1 ? 'photo' : 'photos'} uploaded`
+                        : `${memories.filter((m) => m.promptId === selectedPrompt?.id).length} ${memories.filter((m) => m.promptId === selectedPrompt?.id).length === 1 ? 'photo' : 'photos'} uploaded`}
+                    </div>
+                  </div>
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 text-[#1C2820]/50 transition-transform duration-200 shrink-0 self-center ${
+                    isTagDropdownOpen ? 'rotate-180 text-[#2D4A3A]' : ''
+                  }`}
+                />
+              </button>
+
+              {isTagDropdownOpen && (
+                <div
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full mt-1.5 w-full bg-white/95 backdrop-blur-xl border border-[#1C2820]/15 rounded-2xl shadow-xl z-30 p-1.5 space-y-1 max-h-72 overflow-y-auto overscroll-contain animate-in fade-in zoom-in-95 duration-100"
+                >
+                  {/* Option: All tags */}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={categoryFilter === 'all'}
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setIsTagDropdownOpen(false);
+                    }}
+                    className={`w-full min-w-0 px-3 py-2.5 rounded-xl text-left flex items-center justify-between gap-2.5 transition-colors ${
+                      categoryFilter === 'all'
+                        ? 'bg-[#2D4A3A]/10 text-[#2D4A3A]'
+                        : 'hover:bg-[#1C2820]/5 text-[#1C2820]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="text-base shrink-0 leading-none">🏷️</span>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`text-xs sm:text-sm leading-snug break-words ${
+                            categoryFilter === 'all' ? 'font-bold text-[#2D4A3A]' : 'font-medium text-[#1C2820]'
+                          }`}
+                        >
+                          All Photo Tags
+                        </div>
+                        <div className="text-[10px] sm:text-[11px] text-[#1C2820]/55 font-medium">
+                          {memories.length} {memories.length === 1 ? 'photo' : 'photos'} uploaded
+                        </div>
+                      </div>
+                    </div>
+                    {categoryFilter === 'all' && (
+                      <Check className="w-4 h-4 text-[#2D4A3A] shrink-0 self-center" />
+                    )}
+                  </button>
+
+                  {/* Prompts list */}
+                  {prompts.length === 0 ? (
+                    <div className="p-3 text-xs text-[#1C2820]/60 text-center">
+                      No photo tags available
+                    </div>
+                  ) : (
+                    prompts.map((p) => {
+                      const isSelected = categoryFilter === p.id;
+                      const count = memories.filter((m) => m.promptId === p.id).length;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => {
+                            setCategoryFilter(p.id);
+                            setIsTagDropdownOpen(false);
+                          }}
+                          className={`w-full min-w-0 px-3 py-2.5 rounded-xl text-left flex items-center justify-between gap-2.5 transition-colors ${
+                            isSelected
+                              ? 'bg-[#2D4A3A]/10 text-[#2D4A3A]'
+                              : 'hover:bg-[#1C2820]/5 text-[#1C2820]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="text-base shrink-0 leading-none">{p.icon || '🏷️'}</span>
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className={`text-xs sm:text-sm leading-snug break-words ${
+                                  isSelected ? 'font-bold text-[#2D4A3A]' : 'font-medium text-[#1C2820]'
+                                }`}
+                              >
+                                {p.label}
+                              </div>
+                              <div className="text-[10px] sm:text-[11px] text-[#1C2820]/55 font-medium">
+                                {count} {count === 1 ? 'photo' : 'photos'} uploaded
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-[#2D4A3A] shrink-0 self-center" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Select All on mobile right next to dropdown */}
             <button
               type="button"
               onClick={handleSelectAll}
-              className="sm:hidden h-10 px-3.5 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] flex items-center justify-center gap-1.5 shadow-sm transition-all shrink-0 whitespace-nowrap"
+              className="sm:hidden min-h-[46px] px-3.5 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] flex items-center justify-center gap-1.5 shadow-sm transition-all shrink-0 whitespace-nowrap active:scale-95"
+            >
+              <CheckSquare className="w-4 h-4 text-[#2D4A3A]" />
+              <span>
+                {selectedIds.length === filteredMemories.length && filteredMemories.length > 0
+                  ? 'Deselect'
+                  : 'Select All'}
+              </span>
+            </button>
+          </div>
+
+          {/* Desktop Select All and Results Count */}
+          <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+            <span className="text-xs font-medium text-[#1C2820]/60">
+              Showing <strong className="text-[#1C2820] font-bold">{filteredMemories.length}</strong> of{' '}
+              {memories.length} {memories.length === 1 ? 'photo' : 'photos'}
+              {searchQuery.trim() && <span> for &ldquo;{searchQuery.trim()}&rdquo;</span>}
+            </span>
+
+            {(categoryFilter !== 'all' || searchQuery.trim()) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('all');
+                  setSearchQuery('');
+                }}
+                className="text-[11px] font-bold text-[#2D4A3A] hover:underline flex items-center gap-1 shrink-0"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="hidden sm:flex min-h-[46px] px-3.5 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] items-center justify-center gap-2 shadow-sm transition-all shrink-0 active:scale-95"
             >
               <CheckSquare className="w-4 h-4 text-[#2D4A3A]" />
               <span>
@@ -257,39 +477,7 @@ export default function HostPhotosPage() {
                   : 'Select All'}
               </span>
             </button>
-
-            {/* Photo count: visible on desktop alongside dropdown */}
-            <span className="hidden sm:inline-block text-xs font-medium text-[#1C2820]/55 shrink-0">
-              Showing {filteredMemories.length} {filteredMemories.length === 1 ? 'photo' : 'photos'}
-              {searchQuery.trim() && (
-                <span> for &ldquo;{searchQuery.trim()}&rdquo;</span>
-              )}
-            </span>
           </div>
-
-          {/* Mobile photo count row */}
-          <div className="flex sm:hidden items-center justify-between text-xs font-medium text-[#1C2820]/55 px-1">
-            <span>
-              Showing {filteredMemories.length} {filteredMemories.length === 1 ? 'photo' : 'photos'}
-              {searchQuery.trim() && (
-                <span> for &ldquo;{searchQuery.trim()}&rdquo;</span>
-              )}
-            </span>
-          </div>
-
-          {/* Desktop Select All button */}
-          <button
-            type="button"
-            onClick={handleSelectAll}
-            className="hidden sm:flex h-10 px-3.5 rounded-xl border border-[#1C2820]/15 bg-white hover:bg-[#FAF8F5] text-xs font-bold text-[#1C2820]/75 hover:text-[#1C2820] items-center justify-center gap-2 shadow-sm transition-all shrink-0"
-          >
-            <CheckSquare className="w-4 h-4 text-[#2D4A3A]" />
-            <span>
-              {selectedIds.length === filteredMemories.length && filteredMemories.length > 0
-                ? 'Deselect All'
-                : 'Select All'}
-            </span>
-          </button>
         </div>
       </div>
 
@@ -396,7 +584,7 @@ export default function HostPhotosPage() {
                       ? 'Private Vault'
                       : isSpotlighted
                       ? 'Pinned'
-                      : 'Live Public'}
+                      : 'Visible in Gallery'}
                   </span>
                 </div>
 
@@ -500,12 +688,30 @@ export default function HostPhotosPage() {
       </div>
 
       {filteredMemories.length === 0 && (
-        <div className="p-12 text-center bg-white rounded-3xl border border-[#1C2820]/10 text-[#1C2820]/60 space-y-2">
+        <div className="p-12 text-center bg-white rounded-3xl border border-[#1C2820]/10 text-[#1C2820]/60 space-y-3">
           <AlertCircle className="w-8 h-8 mx-auto text-[#1C2820]/40" />
           <p className="font-serif text-xl font-medium text-[#1C2820]">
             No photos found in this filter
           </p>
-          <p className="text-xs">Adjust your search or filter tab to view more photos.</p>
+          <p className="text-xs max-w-sm mx-auto">
+            Adjust your search query, photo tag, or visibility tab to view more memories.
+          </p>
+          {(categoryFilter !== 'all' || searchQuery.trim() || filterTab !== 'all') && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('all');
+                  setSearchQuery('');
+                  setFilterTab('all');
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold hover:bg-[#1F3628] shadow-sm transition-all active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Show All Memories</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -12,7 +12,15 @@ const SEEN_REVEAL_KEY = 'withlove_seen_reveal';
 // Don't pop up results from rounds that closed long ago
 const REVEAL_WINDOW_MS = 6 * 60 * 60 * 1000;
 
-const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+const formatCountdown = (seconds: number) => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+};
 
 /**
  * Announces a live voting round on every guest screen for as long as the round is open:
@@ -181,7 +189,7 @@ export default function LiveRoundSheet() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-60" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2D4A3A]" />
             </span>
-            Live voting round
+            Live Photo Contest
           </span>
 
           <h2 id="live-round-title" className="mt-3 font-serif text-[34px] leading-[1.05] font-medium tracking-tight text-[#1C2820]">
@@ -206,7 +214,7 @@ export default function LiveRoundSheet() {
             onClick={close}
             className="mt-6 w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] press"
           >
-            Go to live round <ChevronRight className="w-5 h-5" />
+            Vote in photo contest <ChevronRight className="w-5 h-5" />
           </Link>
           <button type="button" onClick={close} className="mt-2 w-full py-3 text-[15px] font-medium text-[#1C2820]/55 press">
             Maybe later
@@ -268,7 +276,7 @@ function WinnerReveal({ promptId, onClose }: { promptId: string; onClose: () => 
 
           {winners.length === 0 ? (
             <div className="py-12 text-center space-y-2">
-              <p className="font-serif text-[24px] text-[#1C2820]">No votes this round</p>
+              <p className="font-serif text-[24px] text-[#1C2820]">No votes in this contest</p>
               <p className="text-[15px] text-[#1C2820]/55">Keep sharing — there’s always the next one.</p>
             </div>
           ) : (

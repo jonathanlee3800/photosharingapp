@@ -63,7 +63,7 @@ export default function HostEventsPage() {
               Select an Event
             </h1>
             <p className="text-xs sm:text-sm text-[#1C2820]/65 mt-1 font-medium">
-              Choose an event below to access its live table QR codes, tags, and moderation vault.
+              Select an event to view its live QR code, photo tags, and gallery vault.
             </p>
           </div>
 
@@ -91,7 +91,7 @@ export default function HostEventsPage() {
                 Create New Celebration
               </h3>
               <p className="text-xs text-[#1C2820]/65 font-medium mt-1 max-w-xs leading-relaxed">
-                Set up a new wedding or reception, generate fresh table QR codes, and customize guest tags.
+                Set up a celebration, generate a guest QR code, and customize photo tags for your gallery.
               </p>
             </div>
             <span className="mt-2 text-xs font-bold text-[#2D4A3A] flex items-center gap-1 group-hover:translate-x-1 transition-transform">

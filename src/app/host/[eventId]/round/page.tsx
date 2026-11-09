@@ -6,7 +6,15 @@ import { ArrowLeft, Clock, Heart, Lock, Trophy } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
 
-const formatCountdown = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+const formatCountdown = (seconds: number) => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) {
+    return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+};
 
 /**
  * Host's view of the live round: standings update live, no voting.
@@ -42,16 +50,17 @@ export default function HostRoundPage() {
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
             <span>Back to overview</span>
           </Link>
-          <span className="text-xs text-[#1C2820]/50 font-medium truncate min-w-0">
-            Managing: <span className="font-bold text-[#1C2820]">{currentEvent.title}</span>
-          </span>
+          <div className="flex items-center gap-1.5 text-xs text-[#1C2820]/55 font-medium truncate min-w-0">
+            <span>Current event:</span>
+            <span className="font-bold text-[#1C2820] truncate">{currentEvent.title}</span>
+          </div>
         </div>
 
         {!votingRound.isOpen && !hasResults ? (
           <div className="bg-white rounded-3xl p-10 border border-[#1C2820]/10 shadow-sm text-center space-y-2">
             <Trophy className="w-8 h-8 text-[#2D4A3A] mx-auto" strokeWidth={1.6} />
-            <h1 className="font-serif text-3xl text-[#1C2820]">No live round right now</h1>
-            <p className="text-xs text-[#1C2820]/60 font-medium">Start a round from the overview page to see it here.</p>
+            <h1 className="font-serif text-3xl text-[#1C2820]">No live contest right now</h1>
+            <p className="text-xs text-[#1C2820]/60 font-medium">Start a photo contest from your host overview to see live standings here.</p>
           </div>
         ) : (
           <>
@@ -59,7 +68,7 @@ export default function HostRoundPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-[#2D4A3A]/80">
-                    {hasResults ? 'Final results' : 'The live round'}
+                    {hasResults ? 'Final contest results' : 'Live Photo Contest'}
                   </p>
                   <h1 className="font-serif text-3xl sm:text-4xl text-[#1C2820] mt-1">
                     {prompt.icon} {prompt.label}
@@ -72,7 +81,7 @@ export default function HostRoundPage() {
                     </>
                   ) : (
                     <>
-                      <Lock className="w-3 h-3" /> {votingRound.isOpen ? 'Time’s up' : 'Round closed'}
+                      <Lock className="w-3 h-3" /> {votingRound.isOpen ? 'Time’s up' : 'Contest closed'}
                     </>
                   )}
                 </span>
@@ -111,7 +120,7 @@ export default function HostRoundPage() {
 
             {contenders.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 border border-[#1C2820]/10 shadow-sm text-center">
-                <p className="font-serif text-2xl text-[#1C2820]">No photos with this tag yet</p>
+                <p className="font-serif text-2xl text-[#1C2820]">No photos entered for this contest yet</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">

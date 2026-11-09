@@ -280,10 +280,13 @@ export default function UploadPage() {
           </label>
         </div>
 
-        {/* Tag */}
+        {/* Photo Tag */}
         {prompts.length > 0 && (
-          <div className="space-y-2.5">
-            <p className="px-1 text-[13px] font-medium uppercase tracking-[0.08em] text-[#1C2820]/45">Tag</p>
+          <div className="space-y-2">
+            <div className="px-1">
+              <p className="text-[13px] font-bold uppercase tracking-[0.08em] text-[#1C2820]/60">Photo Tag</p>
+              <p className="text-xs text-[#1C2820]/50 font-medium mt-0.5">Pick the tag that best fits your photo</p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {prompts.map((p) => {
                 const active = promptId === p.id;

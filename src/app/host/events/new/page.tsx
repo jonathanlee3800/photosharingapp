@@ -188,7 +188,7 @@ export default function CreateEventPage() {
             Create a New Event
           </h1>
           <p className="text-sm text-[#1C2820]/65 mt-1 font-medium">
-            Generate an instant QR code for guest phones and set up custom tags for well-wishes.
+            Set up your celebration, generate your guest QR code, and customize photo tags for your gallery.
           </p>
         </div>
 
@@ -210,8 +210,8 @@ export default function CreateEventPage() {
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Event title"
-                  className="w-full px-4 py-3 rounded-xl border border-[#1C2820]/20 text-sm font-semibold focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
+                  placeholder="e.g. Sarah & David"
+                  className="w-full px-4 py-3 rounded-xl border border-[#1C2820]/20 bg-white text-sm font-semibold text-[#1C2820] placeholder:text-[#1C2820]/40 placeholder:text-sm placeholder:font-normal focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/20 transition-all shadow-sm"
                 />
               </div>
 
@@ -228,9 +228,7 @@ export default function CreateEventPage() {
                 <div>
                   <div className="text-xs font-bold text-[#1C2820] uppercase tracking-wide">Event PIN</div>
                   <p className="text-[11px] text-[#1C2820]/60 font-medium mt-0.5 leading-relaxed">
-                    A unique 6-digit PIN (e.g. <span className="font-bold tabular-nums text-[#2D4A3A]">482 913</span>) is
-                    created automatically when you launch the event. Guests type it at /join or scan the QR code, and it
-                    can’t be changed.
+                    When you launch the event, we automatically generate a unique 6-digit code (e.g. <span className="font-bold tabular-nums text-[#2D4A3A]">482 913</span>) for your celebration. Your guests use this code to join by typing it on the welcome screen or scanning the QR code you display on the day. You can print or display this code at the venue so everyone can find the gallery.
                   </p>
                 </div>
               </div>
@@ -360,18 +358,18 @@ export default function CreateEventPage() {
 
             {/* 3. Tags Builder Card */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#1C2820]/10 shadow-sm space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
                   <h2 className="font-serif text-2xl font-bold text-[#1C2820]">
-                    3. Tags & Prompts
+                    3. Photo Tags
                   </h2>
-                  <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
-                    Guests can select these tags when uploading candid photos or video toasts.
-                  </p>
+                  <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold whitespace-nowrap shrink-0">
+                    {categories.length} {categories.length === 1 ? 'Tag' : 'Tags'}
+                  </span>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold whitespace-nowrap shrink-0">
-                  {categories.length} {categories.length === 1 ? 'Tag' : 'Tags'}
-                </span>
+                <p className="text-xs text-[#1C2820]/60 font-medium leading-relaxed">
+                  Photo themes and fun prompts for your guests (e.g. First Dance, Heartfelt Toasts). Guests choose a tag when uploading so memories stay organized in your gallery, and you can pick any tag to run live photo contests on screen.
+                </p>
               </div>
 
               {/* Existing Tags List */}
@@ -406,36 +404,41 @@ export default function CreateEventPage() {
                   <span>Add another tag</span>
                 </span>
 
-                <div className="flex items-center gap-2">
-                  <select
-                    value={newCatIcon}
-                    onChange={(e) => setNewCatIcon(e.target.value)}
-                    className="w-16 p-2 rounded-xl border border-[#1C2820]/20 text-base text-center bg-white"
-                  >
-                    {EMOJI_OPTIONS.map((em) => (
-                      <option key={em} value={em}>
-                        {em}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <select
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      className="w-14 h-[42px] rounded-xl border border-[#1C2820]/20 text-base text-center bg-white cursor-pointer focus:outline-none focus:border-[#2D4A3A] shrink-0"
+                    >
+                      {EMOJI_OPTIONS.map((em) => (
+                        <option key={em} value={em}>
+                          {em}
+                        </option>
+                      ))}
+                    </select>
 
-                  <input
-                    type="text"
-                    value={newCatLabel}
-                    onChange={(e) => setNewCatLabel(e.target.value)}
-                    placeholder="e.g. Best bouquet reaction, Table 4 laughs"
-                    className="flex-1 px-3 py-2 rounded-xl border border-[#1C2820]/20 text-xs font-semibold focus:outline-none focus:border-[#2D4A3A]"
-                  />
+                    <input
+                      type="text"
+                      value={newCatLabel}
+                      onChange={(e) => setNewCatLabel(e.target.value)}
+                      placeholder="e.g. First Dance"
+                      className="flex-1 min-w-0 px-3.5 h-[42px] rounded-xl border border-[#1C2820]/20 bg-white text-xs sm:text-sm font-medium text-[#1C2820] placeholder:text-[#1C2820]/40 placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal focus:outline-none focus:border-[#2D4A3A] focus:ring-2 focus:ring-[#2D4A3A]/10 transition-all"
+                    />
+                  </div>
 
                   <button
                     type="button"
                     onClick={handleAddCategory}
-                    className="px-4 py-2 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center gap-1 hover:bg-[#1F3628] transition-colors shrink-0"
+                    className="h-[42px] w-full sm:w-auto px-4 rounded-xl bg-[#2D4A3A] text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-[#1F3628] transition-colors shrink-0 shadow-sm active:scale-95"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Add</span>
+                    <span>Add Tag</span>
                   </button>
                 </div>
+                <p className="text-[11px] text-[#1C2820]/50 font-medium">
+                  Suggestions: First Dance, Best Bouquet Reaction, Dance Floor Energy
+                </p>
               </div>
             </div>
           </div>

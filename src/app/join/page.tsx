@@ -41,7 +41,7 @@ function EnterPin() {
       return;
     }
     setChecking(false);
-    setError(`We couldn’t find an event with PIN ${formatPin(pin)}. Check the PIN and try again.`);
+    setError(`We couldn’t find an event with that code. Double-check the 6 digits and try again.`);
     inputRef.current?.focus();
   };
 
@@ -73,7 +73,7 @@ function EnterPin() {
             autoComplete="off"
             autoFocus
             enterKeyHint="go"
-            placeholder="Event PIN"
+            placeholder="6-digit code"
             value={formatPin(pin)}
             onChange={(e) => {
               setPin(cleanPinInput(e.target.value));
@@ -105,7 +105,7 @@ function EnterPin() {
         </form>
 
         <p className="mt-6 text-[14px] text-white/65 text-center max-w-xs animate-fade-up" style={{ animationDelay: '120ms' }}>
-          Find the PIN on the big screen or the QR code at your table.
+          Find your 6-digit code on the screen, or ask your hosts for the 6-digit code.
         </p>
       </div>
 

@@ -7,18 +7,18 @@ import { useState, useEffect } from 'react';
  * ensuring text is never cut off on phones.
  */
 export function useSearchPlaceholder(): string {
-  // Default to standard mobile string on SSR so initial render is clean
-  const [placeholder, setPlaceholder] = useState('Search by guest or caption (e.g. Sarah)...');
+  // Default to concise mobile string on SSR so initial render is clean and fits any viewport
+  const [placeholder, setPlaceholder] = useState('Search photos...');
 
   useEffect(() => {
     const update = () => {
       const width = window.innerWidth;
-      if (width < 380) {
-        setPlaceholder('Search guest or caption...');
+      if (width < 360) {
+        setPlaceholder('Search photos...');
       } else if (width < 640) {
-        setPlaceholder('Search by guest or caption (e.g. Sarah)...');
+        setPlaceholder('Search guest or tag...');
       } else {
-        setPlaceholder('Search photos by guest name or caption (e.g. Sarah, first dance)...');
+        setPlaceholder('Search photos by guest name, tag, or note...');
       }
     };
 

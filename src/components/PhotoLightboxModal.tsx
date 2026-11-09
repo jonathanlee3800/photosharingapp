@@ -230,7 +230,7 @@ export default function PhotoLightboxModal({
             <button
               type="button"
               onClick={() => onToggleVote(memory.id)}
-              title={!canVote || canVote(memory) ? 'Vote' : 'Voting opens during a live round'}
+              title={!canVote || canVote(memory) ? 'Vote' : 'Voting opens during a live photo contest'}
               className={`w-full sm:w-auto h-12 px-5 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 transition-all active:scale-95 shrink-0 ${
                 memory.votedByMe
                   ? 'bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white shadow-lg border border-white/20'
