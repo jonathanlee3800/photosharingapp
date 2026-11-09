@@ -12,7 +12,7 @@ function SlideMedia({ memory, entering, rounded }: { memory: MemoryItem; enterin
       {memory.type === 'video' ? (
         <video src={memory.url} autoPlay loop muted playsInline className={mediaClass} />
       ) : (
-        <img src={memory.url} alt={memory.caption} className={mediaClass} />
+        <img src={memory.url} alt={memory.caption || `Photo by ${memory.guestName}`} className={mediaClass} />
       )}
     </div>
   );

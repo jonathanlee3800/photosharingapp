@@ -5,6 +5,7 @@ import { X, Upload, Loader2, ImagePlus, Film, Check, Lock, Crop as CropIcon } fr
 import { useEvent } from '@/context/EventContext';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
 import PhotoCropDialog from '@/components/PhotoCropDialog';
+import { readVideoDuration } from '@/lib/videoDuration';
 
 const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
 
@@ -132,9 +133,11 @@ export default function HostUploadDialog({
         const url = isVideo
           ? await readAsDataUrl(file)
           : processedUrl || (await processUploadedImage(file, PHOTO_OPTIONS)).dataUrl;
+        const duration = isVideo ? await readVideoDuration(file) : null;
         entries.push({
           type: isVideo ? 'video' : 'photo',
           url,
+          duration: duration || undefined,
           caption: caption.trim(),
           promptId,
           isPrivate,

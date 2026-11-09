@@ -588,7 +588,7 @@ export default function HostPhotosPage() {
                 {item.type === 'video' && (
                   <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-md text-white text-[10px] font-bold flex items-center gap-1">
                     <Film className="w-3 h-3 text-[#9BC4A8]" />
-                    <span>Video · {item.duration || '0:24'}</span>
+                    <span>{item.duration ? `Video · ${item.duration}` : 'Video'}</span>
                   </div>
                 )}
               </div>

@@ -8,12 +8,14 @@ import { useEvent } from '@/context/EventContext';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
 import PhotoFrame from '@/components/PhotoFrame';
 import PhotoCropDialog from '@/components/PhotoCropDialog';
+import { readVideoDuration } from '@/lib/videoDuration';
 
 interface SelectedMediaFile {
   url: string;
   name: string;
   type: 'photo' | 'video';
   isPendingCompression?: boolean;
+  duration?: string | null;
 }
 
 export default function UploadPage() {
@@ -64,12 +66,14 @@ export default function UploadPage() {
       const instantVideoUrl = URL.createObjectURL(file);
       setSelectedFile({ url: instantVideoUrl, name: file.name, type: 'video' });
       setMediaType('video');
+      const durationRead = readVideoDuration(file);
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const result = event.target?.result;
+        const duration = await durationRead;
         if (typeof result === 'string') {
-          setSelectedFile({ url: result, name: file.name, type: 'video' });
+          setSelectedFile({ url: result, name: file.name, type: 'video', duration });
         }
         setIsProcessing(false);
       };
@@ -95,7 +99,7 @@ export default function UploadPage() {
 
     // Process & convert HEIC (via server libheif) and compress to JPEG DataURL
     try {
-      const processed = await processUploadedImage(file, { maxDimension: 1400, quality: 0.85 });
+      const processed = await processUploadedImage(file, { maxDimension: 2000, quality: 0.88 });
       setSelectedFile({ url: processed.dataUrl, name: processed.fileName, type: 'photo', isPendingCompression: false });
       setMediaType('photo');
     } catch (err: any) {
@@ -121,10 +125,10 @@ export default function UploadPage() {
       await addMemory({
         type: selectedFile.type,
         url: selectedFile.url,
-        caption: caption.trim() || `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
+        caption: caption.trim(),
         promptId,
         isPrivate,
-        duration: selectedFile.type === 'video' ? '0:24' : undefined,
+        duration: selectedFile.type === 'video' ? selectedFile.duration || undefined : undefined,
         guestName: finalAuthor,
       });
       router.push(`/user/${currentEvent.code}/gallery`);

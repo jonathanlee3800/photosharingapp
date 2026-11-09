@@ -1394,7 +1394,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     );
     triggerToast(
       'Photo contest closed',
-      winner && winner.votes > 0 ? `Winner: "${winner.caption.slice(0, 40)}" by ${winner.guestName}` : 'No votes were cast'
+      winner && winner.votes > 0 ? winner.caption ? `Winner: "${winner.caption.slice(0, 40)}" by ${winner.guestName}` : `Winner: ${winner.guestName}` : 'No votes were cast'
     );
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
@@ -1545,15 +1545,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
       eventId: currentEvent.id,
       guestName: finalAuthor,
       type: newEntry.type || 'photo',
-      duration: newEntry.type === 'video' ? (newEntry.duration || '0:19') : undefined,
+      duration: newEntry.type === 'video' ? newEntry.duration || undefined : undefined,
       url: newEntry.url,
-      caption:
-        newEntry.caption.trim() ||
-        `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`,
-      subCaption:
-        newEntry.type === 'video'
-          ? 'Video well-wish uploaded by guest.'
-          : 'Shared live from the wedding reception.',
+      // Left blank when the guest doesn't write one; screens show just the photo and who shared it
+      caption: newEntry.caption.trim(),
       promptId: newEntry.promptId || prompts[0]?.id || 'fav-chapter',
       isPrivate: Boolean(newEntry.isPrivate),
       votes: 0,
@@ -1647,17 +1642,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
       eventId: currentEvent.id,
       guestName: newEntry.guestName?.trim() || finalAuthor,
       type: newEntry.type || 'photo',
-      duration: newEntry.type === 'video' ? (newEntry.duration || '0:19') : undefined,
+      duration: newEntry.type === 'video' ? newEntry.duration || undefined : undefined,
       url: newEntry.url,
-      // Hosts may leave the caption blank; guests' blank captions get a default wish
-      caption:
-        newEntry.caption.trim() ||
-        (hostUser ? '' : `Wishing ${currentEvent.title} a lifetime of quiet mornings and loud celebrations!`),
-      subCaption: hostUser
-        ? undefined
-        : newEntry.type === 'video'
-          ? 'Video well-wish uploaded by guest.'
-          : 'Shared live from the wedding reception.',
+      // Left blank when nobody writes one
+      caption: newEntry.caption.trim(),
       promptId: newEntry.promptId || prompts[0]?.id || 'fav-chapter',
       isPrivate: Boolean(newEntry.isPrivate),
       votes: 0,
@@ -1819,7 +1807,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     if (nextSpotlight) {
       triggerToast(
-        `Spotlighted "${target.caption.slice(0, 32)}..."`,
+        target.caption ? `Spotlighted "${target.caption.slice(0, 32)}"` : `Spotlighted ${target.guestName}’s photo`,
         'Locked onto Live Slideshow & Projector Screen'
       );
     } else {
