@@ -24,6 +24,7 @@ import {
   SkipForward,
   ExternalLink,
   Pin,
+  ChevronRight,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { formatPin } from '@/lib/pin';
@@ -65,6 +66,11 @@ export default function HostOverviewPage() {
     deletePrompt,
     triggerToast,
   } = useEvent();
+
+  const photoCount = memories.filter((m) => m.type === 'photo').length;
+  const videoCount = memories.filter((m) => m.type === 'video').length;
+  const privatePhotoCount = privateMemories.filter((m) => m.type === 'photo').length;
+  const privateVideoCount = privateMemories.filter((m) => m.type === 'video').length;
 
   const [promptInput, setPromptInput] = useState('');
   const [promptIcon, setPromptIcon] = useState('📸');
@@ -210,7 +216,7 @@ export default function HostOverviewPage() {
                   Event QR code & link
                 </h2>
                 <p className="text-xs text-[#1C2820]/60 font-medium mt-0.5">
-                  Scan the QR code to join.
+                  Guests can scan the QR code to join.
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full bg-[#E9EFEA] text-[#2D4A3A] text-xs font-bold flex items-center gap-1.5 shrink-0">
@@ -392,9 +398,9 @@ export default function HostOverviewPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3 border-y border-[#1C2820]/10 py-4">
-                <div>
-                  <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
+              <div className="grid grid-cols-3 gap-3 border-y border-[#1C2820]/10 py-4 text-center">
+                <div className="text-center">
+                  <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820] tabular-nums">
                     {!votingRound.isOpen
                       ? '--:--'
                       : votingRound.secondsLeft === null
@@ -405,14 +411,14 @@ export default function HostOverviewPage() {
                   </div>
                   <div className="text-[10px] text-[#1C2820]/60 font-medium">remaining</div>
                 </div>
-                <div>
-                  <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
+                <div className="text-center">
+                  <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820] tabular-nums">
                     {votingTotal}
                   </div>
                   <div className="text-[10px] text-[#1C2820]/60 font-medium">votes</div>
                 </div>
-                <div>
-                  <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820]">
+                <div className="text-center">
+                  <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1C2820] tabular-nums">
                     {votingCandidates.length}
                   </div>
                   <div className="text-[10px] text-[#1C2820]/60 font-medium">candidates</div>
@@ -593,29 +599,92 @@ export default function HostOverviewPage() {
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
-              <span className="text-xs font-semibold">Memories Collected</span>
-              <ImageIcon className="w-4 h-4 text-[#2D4A3A]" />
-            </div>
-            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
-              {memories.length}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          {/* 1. Memories Collected Card */}
+          <Link
+            href={currentEvent?.code ? `/host/${currentEvent.code}/photos` : '/host/photos'}
+            className="group bg-white rounded-3xl p-5 sm:p-6 border border-[#1C2820]/10 shadow-sm hover:shadow-md hover:border-[#2D4A3A]/25 transition-all flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#E9EFEA] text-[#2D4A3A] flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-[#1C2820] tracking-tight block">
+                      Memories Collected
+                    </span>
+                    <span className="text-[10px] font-medium text-[#1C2820]/50 block">
+                      Live celebration gallery
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-[#2D4A3A] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+                  <span>Gallery</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
 
-          <div className="bg-white rounded-2xl p-5 border border-[#1C2820]/10 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[#1C2820]/60 mb-2">
-              <span className="text-xs font-semibold">Private Vault</span>
-              <Lock className="w-4 h-4 text-[#2D4A3A]" />
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-[#1C2820] tabular-nums leading-none tracking-tight my-2">
+                {memories.length}
+              </div>
             </div>
-            <div className="font-serif text-4xl font-bold text-[#1C2820] mb-1">
-              {privateMemories.length}
+
+            <div className="pt-3 mt-2 border-t border-[#1C2820]/8 flex items-center justify-between text-[11px] text-[#1C2820]/60 font-medium">
+              <span>
+                {memories.length === 0
+                  ? '0 photos · 0 videos'
+                  : `${photoCount} ${photoCount === 1 ? 'photo' : 'photos'} · ${videoCount} ${videoCount === 1 ? 'video' : 'videos'}`}
+              </span>
+              <span className="text-[10px] font-bold text-[#2D4A3A] bg-[#E9EFEA] px-2 py-0.5 rounded-full shrink-0">
+                Public feed
+              </span>
             </div>
-            <div className="text-[11px] text-[#1C2820]/60 font-medium">
-              Visible only to you, the hosts
+          </Link>
+
+          {/* 2. Private Vault Card */}
+          <Link
+            href={currentEvent?.code ? `/host/${currentEvent.code}/photos?tab=private` : '/host/photos?tab=private'}
+            className="group bg-white rounded-3xl p-5 sm:p-6 border border-[#1C2820]/10 shadow-sm hover:shadow-md hover:border-[#2D4A3A]/25 transition-all flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#FAF8F5] border border-[#1C2820]/10 text-[#1C2820]/70 flex items-center justify-center shrink-0">
+                    <Lock className="w-4 h-4 text-[#1C2820]/75" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-[#1C2820] tracking-tight block">
+                      Private Vault
+                    </span>
+                    <span className="text-[10px] font-medium text-[#1C2820]/50 block">
+                      Visible only to you, the hosts
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-[#2D4A3A] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0">
+                  <span>Vault</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+
+              <div className="font-serif text-4xl sm:text-5xl font-bold text-[#1C2820] tabular-nums leading-none tracking-tight my-2">
+                {privateMemories.length}
+              </div>
             </div>
-          </div>
+
+            <div className="pt-3 mt-2 border-t border-[#1C2820]/8 flex items-center justify-between text-[11px] text-[#1C2820]/60 font-medium">
+              <span>
+                {privateMemories.length === 0
+                  ? '0 photos · 0 videos'
+                  : `${privatePhotoCount} ${privatePhotoCount === 1 ? 'photo' : 'photos'} · ${privateVideoCount} ${privateVideoCount === 1 ? 'video' : 'videos'}`}
+              </span>
+              <span className="text-[10px] font-bold text-[#1C2820]/60 bg-[#1C2820]/5 px-2 py-0.5 rounded-full shrink-0">
+                Hidden
+              </span>
+            </div>
+          </Link>
         </div>
 
         {/* Bottom Row: Tags Manager & Live Spotlight */}

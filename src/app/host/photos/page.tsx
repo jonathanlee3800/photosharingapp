@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Download,
   Trash2,
@@ -31,6 +32,14 @@ import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 import PhotoFrame from '@/components/PhotoFrame';
 
 export default function HostPhotosPage() {
+  return (
+    <Suspense fallback={null}>
+      <HostPhotosContent />
+    </Suspense>
+  );
+}
+
+function HostPhotosContent() {
   const {
     memories,
     prompts,
@@ -45,8 +54,23 @@ export default function HostPhotosPage() {
     exportSelectedZip,
   } = useEvent();
 
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [filterTab, setFilterTab] = useState<'all' | 'live' | 'private'>(() => {
+    if (tabParam === 'private' || tabParam === 'live' || tabParam === 'all') {
+      return tabParam;
+    }
+    return 'all';
+  });
+
+  // Keep filterTab in sync if the URL query parameter changes
+  useEffect(() => {
+    if (tabParam === 'private' || tabParam === 'live' || tabParam === 'all') {
+      setFilterTab(tabParam);
+    }
+  }, [tabParam]);
+
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [filterTab, setFilterTab] = useState<'all' | 'live' | 'private'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
