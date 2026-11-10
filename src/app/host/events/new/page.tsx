@@ -157,7 +157,7 @@ export default function CreateEventPage() {
         coverUrl: finalCover,
         initialPrompts: categories,
       });
-      router.push(`/host/${newEvent.code}`);
+      router.push(`/host/${newEvent.id}`);
     } catch (err: any) {
       setSubmitError(err?.message || 'Could not create the event. Please try again.');
       setIsCreating(false);

@@ -124,7 +124,7 @@ export default function HostOverviewPage() {
       setSiteOrigin(window.location.origin);
     }
   }, []);
-  const guestUrl = siteOrigin ? `${siteOrigin}/user/${currentEvent.code}` : `/user/${currentEvent.code}`;
+  const guestUrl = siteOrigin ? `${siteOrigin}/user/${currentEvent.id}` : `/user/${currentEvent.id}`;
 
   // Generate real QR code for current event
   useEffect(() => {
@@ -220,8 +220,14 @@ export default function HostOverviewPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-6">
-              {/* Scannable Real QR Graphic */}
-              <div className="w-44 h-44 sm:w-52 sm:h-52 bg-white p-2.5 border border-[#1C2820]/15 rounded-2xl shadow-sm shrink-0 flex items-center justify-center">
+              {/* Scannable QR code; clicking it opens a large version to show guests */}
+              <a
+                href={`/host/${currentEvent.id}/qr`}
+                target="_blank"
+                rel="noopener"
+                title="Open a large QR code to show guests"
+                className="group relative w-44 h-44 sm:w-52 sm:h-52 bg-white p-2.5 border border-[#1C2820]/15 rounded-2xl shadow-sm shrink-0 flex items-center justify-center hover:shadow-md hover:border-[#2D4A3A]/40 transition-all"
+              >
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
@@ -231,25 +237,16 @@ export default function HostOverviewPage() {
                 ) : (
                   <QrCode className="w-20 h-20 text-[#1C2820]/40 animate-pulse" />
                 )}
-              </div>
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-[#1C2820]/80 text-white text-[10px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                  Click to enlarge
+                </span>
+              </a>
 
               <div className="space-y-3 w-full">
-                <div className="flex items-center justify-between bg-[#FAF8F5] rounded-xl px-4 py-2.5 border border-[#1C2820]/15">
-                  <span className="text-xs sm:text-sm font-mono font-semibold text-[#1C2820] truncate pr-2">
-                    {guestUrl}
-                  </span>
-                  <button
-                    onClick={handleCopyLink}
-                    className="p-1 text-[#1C2820]/60 hover:text-[#1C2820]"
-                    title="Copy invite URL"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                {/* Kahoot-style: guests can also type the PIN at /join */}
+                {/* Kahoot-style: guests can also type the PIN */}
                 <div className="rounded-xl bg-[#E9EFEA] px-4 py-3">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#2D4A3A]/80">
-                    Guest Code · guests type this to join
+                  <div className="text-[13px] font-medium text-[#1C2820]/70">
+                    Go to <span className="font-semibold text-[#1C2820]">www.memorieaisle.com/join</span> and enter PIN
                   </div>
                   <div className="text-3xl font-bold text-[#1C2820] tracking-wider tabular-nums mt-0.5">
                     {formatPin(currentEvent.code)}
@@ -586,7 +583,7 @@ export default function HostOverviewPage() {
                 </div>
               )}
               <Link
-                href={`/host/${currentEvent.code}/round`}
+                href={`/host/${currentEvent.id}/round`}
                 className="h-[42px] w-full px-4 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] flex items-center justify-center hover:bg-[#FAF8F5] transition-colors whitespace-nowrap shadow-sm active:scale-[0.99]"
               >
                 View Standings
@@ -896,7 +893,7 @@ export default function HostOverviewPage() {
 
               <div className="text-center">
                 <Link
-                  href={`/host/${currentEvent.code}/projector`}
+                  href={`/host/${currentEvent.id}/projector`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2D4A3A] hover:text-[#1F3628] hover:underline transition-colors py-0.5"

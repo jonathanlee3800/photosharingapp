@@ -47,7 +47,7 @@ export default function HostEventsPage() {
   // Event pages are addressed by join code; the internal event id is never shown
   const handleOpenEvent = (ev: { id: string; code: string }) => {
     setCurrentEventId(ev.id, true);
-    router.push(`/host/${ev.code}`);
+    router.push(`/host/${ev.id}`);
   };
 
   return (

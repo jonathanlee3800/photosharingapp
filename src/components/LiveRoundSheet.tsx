@@ -211,7 +211,7 @@ export default function LiveRoundSheet() {
           </p>
 
           <Link
-            href={`/user/${currentEvent.code}/vote`}
+            href={`/user/${currentEvent.id}/vote`}
             onClick={close}
             className="mt-6 w-full h-14 rounded-2xl bg-[#2D4A3A] text-white text-[16px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(45,74,58,0.28)] press"
           >

@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Loader2, Plus } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import HostAuthGuard from '@/components/HostAuthGuard';
@@ -21,6 +21,15 @@ export default function HostEventLayout({
   const foundEvent = rawEventId ? getEventById(rawEventId) : undefined;
   const matchedEvent = foundEvent && foundEvent.ownerId === hostUser?.id ? foundEvent : undefined;
   const ownedByAnotherAccount = Boolean(foundEvent && hostUser && foundEvent.ownerId && !matchedEvent);
+
+  // Links and QR codes from before use the PIN; switch the address to the event id, keeping the page
+  const pathname = usePathname() || '';
+  const router = useRouter();
+  useEffect(() => {
+    if (!matchedEvent || !rawEventId || rawEventId === matchedEvent.id) return;
+    const rest = pathname.split('/').slice(3).join('/');
+    router.replace(`/host/${matchedEvent.id}${rest ? `/${rest}` : ''}`);
+  }, [matchedEvent, rawEventId, pathname, router]);
 
   useEffect(() => {
     if (matchedEvent && currentEvent.id !== matchedEvent.id) {

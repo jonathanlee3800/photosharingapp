@@ -71,13 +71,13 @@ export default function GalleryPage() {
         </div>
         <div className="hidden md:flex items-center gap-3 shrink-0">
           <Link
-            href={`/user/${currentEvent.code}/vote`}
+            href={`/user/${currentEvent.id}/vote`}
             className="h-11 px-4 rounded-2xl bg-[#E9EFEA] text-[#2D4A3A] text-[14px] font-semibold flex items-center gap-2 press"
           >
             <Trophy className="w-4 h-4" /> Contest
           </Link>
           <Link
-            href={`/user/${currentEvent.code}/upload`}
+            href={`/user/${currentEvent.id}/upload`}
             className="h-11 px-5 rounded-2xl bg-[#2D4A3A] text-white text-[14px] font-semibold flex items-center gap-2 press"
           >
             <Plus className="w-4 h-4" /> Share a photo
@@ -89,7 +89,7 @@ export default function GalleryPage() {
       {roundPrompt && (
         <div className="px-4 md:px-8 pb-4">
           <Link
-            href={`/user/${currentEvent.code}/vote`}
+            href={`/user/${currentEvent.id}/vote`}
             className="flex items-center gap-3 p-4 rounded-[22px] bg-[#2D4A3A] text-white press animate-fade-up"
           >
             <span className="relative flex w-10 h-10 rounded-full bg-white/15 items-center justify-center shrink-0">
@@ -329,7 +329,7 @@ export default function GalleryPage() {
             </button>
           ) : (
             <Link
-              href={`/user/${currentEvent.code}/upload`}
+              href={`/user/${currentEvent.id}/upload`}
               className="mt-2 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"
             >
               <Camera className="w-5 h-5" /> Share a photo

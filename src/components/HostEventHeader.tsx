@@ -42,7 +42,7 @@ export default function HostEventHeader({ active }: { active: 'overview' | 'phot
   const handleSelectEvent = (ev: (typeof events)[number]) => {
     setIsSwitcherOpen(false);
     setCurrentEventId(ev.id, true);
-    router.push(`/host/${ev.code}${active === 'photos' ? '/photos' : ''}`);
+    router.push(`/host/${ev.id}${active === 'photos' ? '/photos' : ''}`);
   };
 
   const tabClass = (isActive: boolean) =>
@@ -70,10 +70,10 @@ export default function HostEventHeader({ active }: { active: 'overview' | 'phot
       {/* Tabs + actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1C2820]/10 pb-5">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <Link href={`/host/${currentEvent.code}`} className={tabClass(active === 'overview')}>
+          <Link href={`/host/${currentEvent.id}`} className={tabClass(active === 'overview')}>
             Overview
           </Link>
-          <Link href={`/host/${currentEvent.code}/photos`} className={tabClass(active === 'photos')}>
+          <Link href={`/host/${currentEvent.id}/photos`} className={tabClass(active === 'photos')}>
             <span className="hidden sm:inline">Photos & Videos</span>
             <span className="sm:hidden">Photos</span>
             <span> ({memories.length})</span>
@@ -193,7 +193,7 @@ export default function HostEventHeader({ active }: { active: 'overview' | 'phot
           {/* Symmetrical 2-column action bar on mobile; inline on desktop */}
           <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-2">
             <Link
-              href={`/host/${currentEvent.code}/projector`}
+              href={`/host/${currentEvent.id}/projector`}
               target="_blank"
               className="h-[38px] px-3.5 rounded-xl border border-[#1C2820]/15 bg-white text-xs font-bold text-[#1C2820] hover:bg-[#FAF8F5] flex items-center justify-center gap-1.5 transition-colors shadow-2xs w-full sm:w-auto"
             >

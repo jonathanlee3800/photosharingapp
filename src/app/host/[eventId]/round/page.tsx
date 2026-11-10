@@ -25,7 +25,7 @@ export default function HostRoundPage() {
   const { currentEvent, publicMemories, votingRound, getPrompt, closeVotingRound } = useEvent();
   const [closing, setClosing] = useState(false);
 
-  const overviewHref = `/host/${currentEvent.code}`;
+  const overviewHref = `/host/${currentEvent.id}`;
   const hasResults = !votingRound.isOpen && Boolean(votingRound.closedAt && votingRound.promptId);
   const prompt = getPrompt(votingRound.promptId);
 

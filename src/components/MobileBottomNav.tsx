@@ -11,7 +11,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname() || '';
   const { currentEvent, isHostLoggedIn, hasJoined, votingRound } = useEvent();
 
-  const base = `/user/${currentEvent.code}`;
+  const base = `/user/${currentEvent.id}`;
   // Join codes may arrive in any case (e.g. typed by hand), so compare case-insensitively
   const onJoinPage = decodeURIComponent(pathname).toLowerCase() === base.toLowerCase();
 

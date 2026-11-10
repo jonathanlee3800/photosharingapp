@@ -51,7 +51,7 @@ export default function VotePage() {
           The hosts will start a photo contest during the celebration. This page updates automatically when it starts.
         </p>
         <Link
-          href={`/user/${currentEvent.code}/gallery`}
+          href={`/user/${currentEvent.id}/gallery`}
           className="mt-8 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center press"
         >
           Back to the gallery
@@ -109,7 +109,7 @@ export default function VotePage() {
           <p className="font-serif text-[26px] text-[#1C2820]">No photos entered for this contest yet</p>
           <p className="text-[15px] text-[#1C2820]/60 max-w-sm">Share a photo under this tag to enter this round!</p>
           <Link
-            href={`/user/${currentEvent.code}/upload`}
+            href={`/user/${currentEvent.id}/upload`}
             className="mt-1 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center gap-2 press"
           >
             <Camera className="w-5 h-5" /> Share a photo

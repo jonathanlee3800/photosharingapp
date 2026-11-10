@@ -17,7 +17,7 @@ export default function GuestFooter() {
     pathname === '/projector' ||
     pathname === '/display' ||
     pathname === '/join' ||
-    pathname?.endsWith('/projector') ||
+    pathname?.endsWith('/projector') || pathname?.endsWith('/qr') ||
     pathname?.endsWith('/slideshow') ||
     pathname?.endsWith('/upload')
   ) {

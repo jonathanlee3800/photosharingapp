@@ -26,7 +26,7 @@ export default function JoinPage() {
     setNameError('');
     setSubmitting(true);
     await joinCelebration(nameInput.trim());
-    router.push(`/user/${currentEvent.code}/gallery`);
+    router.push(`/user/${currentEvent.id}/gallery`);
   };
 
   const meta = currentEvent.date;
@@ -45,6 +45,7 @@ export default function JoinPage() {
       setNameError('');
       setGuestName(trimmed);
       triggerToast('Name updated', 'New photos will show this name');
+      router.push(`/user/${currentEvent.id}/gallery`);
     };
     return (
       <div className="flex-1 w-full max-w-md mx-auto px-6 pt-10 md:pt-16 pb-28 animate-fade-up">
@@ -86,7 +87,7 @@ export default function JoinPage() {
         </form>
 
         <div className="mt-5 flex items-center justify-center gap-5 text-[14px]">
-          <Link href={`/user/${currentEvent.code}/gallery`} className="font-medium text-[#2D4A3A] py-2 press">
+          <Link href={`/user/${currentEvent.id}/gallery`} className="font-medium text-[#2D4A3A] py-2 press">
             Back to the gallery
           </Link>
           <span className="w-1 h-1 rounded-full bg-[#1C2820]/25" />

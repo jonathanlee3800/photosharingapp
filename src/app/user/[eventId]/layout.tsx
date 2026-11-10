@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
@@ -29,6 +29,15 @@ export default function UserEventLayout({
       cancelled = true;
     };
   }, [rawEventId, lookupEvent]);
+
+  // Links and QR codes from before use the PIN; switch the address to the event id, keeping the page
+  const pathname = usePathname() || '';
+  const router = useRouter();
+  useEffect(() => {
+    if (!matchedEvent || !rawEventId || rawEventId === matchedEvent.id) return;
+    const rest = pathname.split('/').slice(3).join('/');
+    router.replace(`/user/${matchedEvent.id}${rest ? `/${rest}` : ''}`);
+  }, [matchedEvent, rawEventId, pathname, router]);
 
   useEffect(() => {
     if (matchedEvent && currentEvent.id !== matchedEvent.id) {

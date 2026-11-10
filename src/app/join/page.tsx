@@ -37,7 +37,7 @@ function EnterPin() {
     setChecking(true);
     const event = await lookupEvent(pin);
     if (event) {
-      router.push(`/user/${event.code}`);
+      router.push(`/user/${event.id}`);
       return;
     }
     setChecking(false);

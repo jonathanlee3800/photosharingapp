@@ -31,8 +31,8 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
 
   const [qrDataUrl, setQrDataUrl] = useState('');
   useEffect(() => {
-    generateQrDataUrl(`${window.location.origin}/user/${currentEvent.code}`, { width: 320, margin: 1 }).then(setQrDataUrl);
-  }, [currentEvent.code]);
+    generateQrDataUrl(`${window.location.origin}/user/${currentEvent.id}`, { width: 320, margin: 1 }).then(setQrDataUrl);
+  }, [currentEvent.id]);
 
   // Controls and the pointer appear when the mouse moves, then get out of the way
   const [showControls, setShowControls] = useState(true);

@@ -10,7 +10,7 @@ export default function ProjectorPage() {
   return (
     <HostAuthGuard>
       <div className="fixed inset-0 z-50 bg-[#FAF8F5]">
-        <ProjectorScreen exitHref={`/host/${currentEvent.code}`} />
+        <ProjectorScreen exitHref={`/host/${currentEvent.id}`} />
       </div>
     </HostAuthGuard>
   );

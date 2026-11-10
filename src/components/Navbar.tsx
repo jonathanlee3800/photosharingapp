@@ -20,11 +20,11 @@ export default function Navbar() {
 
   // If on full projector screen, we don't show the standard site navbar
   // Full-screen pages with their own chrome: projector and the Kahoot-style PIN screen
-  if (pathname === '/projector' || pathname === '/display' || pathname === '/join' || pathname?.endsWith('/projector')) {
+  if (pathname === '/projector' || pathname === '/display' || pathname === '/join' || pathname?.endsWith('/projector') || pathname?.endsWith('/qr')) {
     return null;
   }
 
-  const base = `/user/${currentEvent.code}`;
+  const base = `/user/${currentEvent.id}`;
 
   // The join screen has a full-bleed cover photo, so it runs edge to edge with no bar
   if (isGuest && !hasJoined && decodeURIComponent(pathname || '').toLowerCase() === base.toLowerCase()) {

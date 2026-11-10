@@ -131,7 +131,7 @@ export default function UploadPage() {
         duration: selectedFile.type === 'video' ? selectedFile.duration || undefined : undefined,
         guestName: finalAuthor,
       });
-      router.push(`/user/${currentEvent.code}/gallery`);
+      router.push(`/user/${currentEvent.id}/gallery`);
     } catch (err) {
       console.error('Error posting memory:', err);
       triggerToast('Could not post memory', 'Please check your connection and try again');
@@ -151,7 +151,7 @@ export default function UploadPage() {
       >
         {/* Header */}
         <div className="flex items-center justify-between h-10">
-          <Link href={`/user/${currentEvent.code}/gallery`} className="text-[16px] font-medium text-[#2D4A3A] py-2 pr-3 press">
+          <Link href={`/user/${currentEvent.id}/gallery`} className="text-[16px] font-medium text-[#2D4A3A] py-2 pr-3 press">
             Cancel
           </Link>
           <span className="text-[13px] font-medium text-[#1C2820]/45 truncate pl-3">{currentEvent.title}</span>
