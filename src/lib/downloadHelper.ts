@@ -56,49 +56,17 @@ export async function downloadSinglePhoto(memory: MemoryItem) {
   }
 }
 
-/**
- * Downloads a collection of memories as a consolidated ZIP file including:
- * 1. Image and video assets
- * 2. Captions & well-wishes index (manifest.txt or guestbook.json)
- */
+/** Downloads a collection of photos and videos as one ZIP file (just the media, nothing else) */
 export async function downloadMemoriesZip(
   memories: MemoryItem[],
   zipTitle: string = 'Wedding_Memories.zip',
   onProgress?: (percent: number, currentFile: string) => void,
-  eventMeta?: { title?: string; date?: string }
+  _eventMeta?: { title?: string; date?: string }
 ): Promise<boolean> {
   const zip = new JSZip();
   const folder = zip.folder('wedding_photos') || zip;
-  const headerTitle = (eventMeta?.title || 'Wedding Celebration').toUpperCase();
-  const headerDate = eventMeta?.date || 'Celebration Archive';
 
-  // 1. Build a guestbook well-wishes text summary
-  let wellWishesSummary = `=========================================================\n`;
-  wellWishesSummary += `  ${headerTitle} — MEMORIES & WELL-WISHES ARCHIVE\n`;
-  wellWishesSummary += `  Date: ${headerDate} | Total Memories: ${memories.length}\n`;
-  wellWishesSummary += `=========================================================\n\n`;
-
-  memories.forEach((mem, index) => {
-    wellWishesSummary += `[#${index + 1}] Guest: ${mem.guestName}\n`;
-    wellWishesSummary += `Type: ${mem.type.toUpperCase()} | Timestamp: ${mem.timestamp} | Likes: ${mem.votes}\n`;
-    wellWishesSummary += `Well-Wish / Caption: "${mem.caption}"\n`;
-    if (mem.subCaption) wellWishesSummary += `Details: ${mem.subCaption}\n`;
-    wellWishesSummary += `Private Vault: ${mem.isPrivate ? 'YES' : 'NO'}\n`;
-    wellWishesSummary += `---------------------------------------------------------\n\n`;
-  });
-
-  zip.file('GUESTBOOK_AND_WELL_WISHES.txt', wellWishesSummary);
-  // Metadata only: embedded base64 media is already in the photo files, don't duplicate it here
-  zip.file(
-    'memories_metadata.json',
-    JSON.stringify(
-      memories.map((m) => ({ ...m, url: m.url.startsWith('data:') ? '(embedded file in wedding_photos/)' : m.url })),
-      null,
-      2
-    )
-  );
-
-  // 2. Fetch and add images/videos
+  // Fetch and add each photo and video
   const total = memories.length;
   for (let i = 0; i < total; i++) {
     const mem = memories[i];

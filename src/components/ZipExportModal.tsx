@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Download, CheckCircle2, Loader2, Sparkles, FolderArchive } from 'lucide-react';
+import { X, Download, CheckCircle2, Loader2, FolderArchive } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 
 export default function ZipExportModal() {
   const {
     isZipModalOpen,
     setIsZipModalOpen,
-    memories,
     publicMemories,
     privateMemories,
     exportAllZip,
@@ -18,11 +17,13 @@ export default function ZipExportModal() {
   const [progressMsg, setProgressMsg] = useState('');
 
   if (!isZipModalOpen) return null;
+  // Only this event's photos and videos, which is exactly what the ZIP contains
+  const memories = [...publicMemories, ...privateMemories];
 
   const handleDownloadZip = async () => {
     try {
       setIsExporting(true);
-      setProgressMsg('Bundling photos and well-wishes...');
+      setProgressMsg('Bundling photos and videos...');
       await exportAllZip();
       setProgressMsg('Done! Your download will begin.');
       setTimeout(() => {
@@ -67,16 +68,10 @@ export default function ZipExportModal() {
               {privateMemories.length} Private Memories
             </span>
           </div>
-          <div className="flex justify-between py-1.5 border-b border-[#1C2820]/10">
-            <span className="text-[#1C2820]/70">Video Well-Wishes</span>
+          <div className="flex justify-between py-1.5">
+            <span className="text-[#1C2820]/70">Videos</span>
             <span className="font-semibold">
               {memories.filter((m) => m.type === 'video').length} Videos
-            </span>
-          </div>
-          <div className="flex justify-between py-1.5">
-            <span className="text-[#1C2820]/70">Editorial Guestbook & Captions</span>
-            <span className="font-semibold text-[#2D4A3A] flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Included (TXT + JSON)
             </span>
           </div>
         </div>
