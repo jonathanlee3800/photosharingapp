@@ -49,6 +49,16 @@ export async function updateSession(request: NextRequest) {
       supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
       return redirect
     }
+
+    // Host users who are already logged in go straight to the app
+    if (user) {
+      const target = request.nextUrl.clone()
+      target.pathname = '/host/events'
+      const redirect = NextResponse.redirect(target)
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+      return redirect
+    }
+
     // Allow public landing page at '/' to render
     return supabaseResponse
   }

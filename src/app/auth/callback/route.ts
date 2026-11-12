@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// Relative redirect: the browser stays on the address it is already using (e.g. www.memorieaisle.com).
+// Relative redirect: the browser stays on the address it is already using (e.g. www.memoryaisle.com).
 // Building an absolute URL from request.url breaks behind a proxy/tunnel, where the server sees
 // its own address as http://localhost:3000 and would send phones there.
 function redirectTo(path: string) {

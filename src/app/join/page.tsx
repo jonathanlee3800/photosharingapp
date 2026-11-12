@@ -51,10 +51,13 @@ function EnterPin() {
       <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full bg-[#74A886]/20 blur-3xl pointer-events-none" />
 
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 py-16" style={{ paddingTop: 'max(4rem, env(safe-area-inset-top))' }}>
-        <div className="flex items-center gap-2.5 mb-10 animate-fade-up">
-          <span className="w-10 h-10 rounded-[12px] bg-white text-[#2D4A3A] flex items-center justify-center font-serif text-2xl font-bold">m</span>
-          <span className="font-serif text-[30px] tracking-tight">memorie aisle</span>
-        </div>
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 mb-10 animate-fade-up hover:opacity-90 transition-opacity"
+        >
+          <span className="w-10 h-10 rounded-[12px] bg-white text-[#2D4A3A] flex items-center justify-center font-serif text-2xl font-bold">M</span>
+          <span className="font-serif text-[30px] tracking-tight">Memory Aisle</span>
+        </Link>
 
         <form
           onSubmit={submit}

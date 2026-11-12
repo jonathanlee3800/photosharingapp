@@ -36,7 +36,10 @@ export default function GuestFooter() {
   return (
     // On phones, leave room for the fixed bottom tab bar and home indicator
     <footer className="border-t border-[#1C2820]/[0.08] pt-5 px-4 text-center text-[12px] text-[#1C2820]/45 pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+1.25rem)] md:pb-5">
-      <span>Memorie Aisle · </span>
+      <Link href="/" className="hover:text-[#1C2820] hover:underline">
+        Memory Aisle
+      </Link>
+      <span> · </span>
       <Link href="/host/login" className="font-semibold hover:text-[#1C2820] hover:underline">
         Sign in as host
       </Link>

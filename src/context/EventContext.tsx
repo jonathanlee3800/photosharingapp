@@ -266,6 +266,36 @@ const mapDbPost = (p: any): MemoryItem => ({
   createdAt: p.created_at,
 });
 
+// Finds an event in memory or fallback data by join code (formatted or raw), UUID, or slug
+const findLocalEvent = (query: string, eventList: EventItem[]): EventItem | undefined => {
+  const clean = (query || '').trim().toLowerCase();
+  if (!clean) return undefined;
+  const digitsOnly = clean.replace(/\D/g, '');
+  const cleanSlug = clean.replace(/\s+/g, '-');
+
+  return (
+    // 1. Check join code (stripped of spaces/dashes if 6 digits)
+    (digitsOnly.length === 6
+      ? eventList.find((e) => e.code.replace(/\D/g, '') === digitsOnly)
+      : undefined) ||
+    // 2. Exact join code match (e.g. EVENT-1 or 482910)
+    eventList.find((e) => e.code.toLowerCase() === clean || e.code.toLowerCase() === cleanSlug) ||
+    // 3. Exact UUID / ID match
+    eventList.find((e) => e.id.toLowerCase() === clean) ||
+    // 4. Slug match (e.g. joshua-and-simone)
+    eventList.find((e) => e.slug.toLowerCase() === clean || e.slug.toLowerCase() === cleanSlug) ||
+    // 5. Fallback check against INITIAL_EVENTS
+    INITIAL_EVENTS.find(
+      (e) =>
+        e.code.toLowerCase() === clean ||
+        e.code.toLowerCase() === cleanSlug ||
+        e.id.toLowerCase() === clean ||
+        e.slug.toLowerCase() === clean ||
+        e.slug.toLowerCase() === cleanSlug
+    )
+  );
+};
+
 export function EventProvider({ children }: { children: ReactNode }) {
   // Host Auth State
   const [hostUser, setHostUser] = useState<HostUser | null>(null);
@@ -352,27 +382,64 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Everyone else gets one event at a time, by its PIN or id
   const loadEvent = useCallback(async (code: string): Promise<EventItem | null> => {
-    if (!isSupabaseConfigured()) return null;
+    const rawTrimmed = (code || '').trim();
+    if (!rawTrimmed) return null;
+
+    // 1. Check local/sample/cached events first
+    let localMatch: EventItem | undefined;
+    setEvents((currentEvents) => {
+      localMatch = findLocalEvent(rawTrimmed, currentEvents);
+      return currentEvents; // state-read without mutating
+    });
+
+    // If it's the built-in sample event (EVENT-1 or sample UUID), return immediately
+    const isSample =
+      rawTrimmed.toLowerCase() === 'event-1' ||
+      rawTrimmed.toLowerCase() === 'event 1' ||
+      rawTrimmed.toLowerCase() === INITIAL_EVENTS[0].id.toLowerCase() ||
+      localMatch?.id === INITIAL_EVENTS[0].id;
+
+    if (isSample) {
+      setEvents((prev) => mergeEvent(prev, INITIAL_EVENTS[0]));
+      return INITIAL_EVENTS[0];
+    }
+
+    if (!isSupabaseConfigured()) {
+      return localMatch || null;
+    }
+
+    // 2. Prepare code for Supabase RPC
+    // If it has digits, extract the 6 digits (e.g. "482 910", "#482-910" -> "482910")
+    const digitsOnly = rawTrimmed.replace(/\D/g, '');
+    const rpcCode = digitsOnly.length === 6 ? digitsOnly : rawTrimmed;
+
     const startedAt = Date.now();
-    const { data, error } = await supabase.rpc('get_event_for_guest', { p_code: code });
-    const finishedAt = Date.now();
-    // Keep the measurement from the fastest response, as it's the most accurate
-    if (data?.server_now && finishedAt - startedAt < bestClockSampleMsRef.current) {
-      bestClockSampleMsRef.current = finishedAt - startedAt;
-      setClockOffsetMs(new Date(data.server_now).getTime() + (finishedAt - startedAt) / 2 - finishedAt);
+    try {
+      const { data, error } = await supabase.rpc('get_event_for_guest', { p_code: rpcCode });
+      const finishedAt = Date.now();
+
+      if (data?.server_now && finishedAt - startedAt < bestClockSampleMsRef.current) {
+        bestClockSampleMsRef.current = finishedAt - startedAt;
+        setClockOffsetMs(new Date(data.server_now).getTime() + (finishedAt - startedAt) / 2 - finishedAt);
+      }
+
+      if (error) {
+        console.warn('Error loading event from Supabase:', error);
+        return localMatch || null;
+      }
+
+      if (!data) {
+        if (localMatch) return localMatch;
+        return null;
+      }
+
+      const event = mapDbEvent(data);
+      setEvents((prev) => mergeEvent(prev, event));
+      return event;
+    } catch (err) {
+      console.warn('Error in loadEvent:', err);
+      return localMatch || null;
     }
-    if (error) {
-      console.warn('Error loading event:', error);
-      return null;
-    }
-    if (!data) {
-      // No such event any more: don't keep showing a cached copy
-      setEvents((prev) => prev.filter((e) => e.code !== code && e.id !== code));
-      return null;
-    }
-    const event = mapDbEvent(data);
-    setEvents((prev) => mergeEvent(prev, event));
-    return event;
   }, []);
 
   const lookupEvent = useCallback(
@@ -646,14 +713,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const getEventById = (idOrCode: string): EventItem | undefined => {
-    const clean = idOrCode.trim().toLowerCase();
-    if (!clean) return undefined;
-    // Join code first (what guests use), so a title slug like "12345" can never shadow another event's code
-    return (
-      events.find((e) => e.code.toLowerCase() === clean) ||
-      events.find((e) => e.id.toLowerCase() === clean) ||
-      events.find((e) => e.slug.toLowerCase() === clean)
-    );
+    return findLocalEvent(idOrCode, events);
   };
 
   // A host's events, newest event date first (then most recently created), in a fixed order
@@ -962,7 +1022,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     publicMemories[currentSlideIdx % Math.max(1, publicMemories.length)] ||
     eventMemories[0] || {
       id: 'empty',
-      guestName: 'Memorie Aisle',
+      guestName: 'Memory Aisle',
       type: 'photo',
       url:
         currentEvent.coverUrl ||

@@ -67,7 +67,7 @@ export default function JoinQrPage() {
             <p className="mt-[2vmin] text-[clamp(18px,2.6vmin,30px)] font-semibold text-[#2D4A3A]">Scan to join</p>
             <div className="mt-[3vmin] h-px w-16 bg-[#1C2820]/15 mx-auto landscape:mx-0" />
             <p className="mt-[3vmin] text-[clamp(15px,2vmin,22px)] text-[#1C2820]/60">or go to</p>
-            <p className="text-[clamp(18px,2.6vmin,30px)] font-semibold">www.memorieaisle.com/join</p>
+            <p className="text-[clamp(18px,2.6vmin,30px)] font-semibold">www.memoryaisle.com/join</p>
             <p className="mt-[2vmin] text-[clamp(15px,2vmin,22px)] text-[#1C2820]/60">and enter PIN</p>
             <p className="text-[clamp(40px,7vmin,92px)] font-semibold tracking-tight tabular-nums leading-none text-[#2D4A3A]">
               {formatPin(currentEvent.code)}

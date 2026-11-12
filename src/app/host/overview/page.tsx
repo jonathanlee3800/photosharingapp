@@ -252,7 +252,7 @@ export default function HostOverviewPage() {
                 {/* Kahoot-style: guests can also type the PIN */}
                 <div className="rounded-xl bg-[#E9EFEA] px-4 py-3">
                   <div className="text-[13px] font-medium text-[#1C2820]/70">
-                    Go to <span className="font-semibold text-[#1C2820]">www.memorieaisle.com/join</span> and enter PIN
+                    Go to <span className="font-semibold text-[#1C2820]">www.memoryaisle.com/join</span> and enter PIN
                   </div>
                   <div className="text-3xl font-bold text-[#1C2820] tracking-wider tabular-nums mt-0.5">
                     {formatPin(currentEvent.code)}

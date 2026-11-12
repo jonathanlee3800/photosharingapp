@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -18,7 +18,14 @@ import { useEvent } from '@/context/EventContext';
 
 export default function HomePage() {
   const router = useRouter();
-  const { lookupEvent } = useEvent();
+  const { lookupEvent, isHostLoggedIn, hostUser, hasJoined } = useEvent();
+
+  // If host users are already logged in, bring them straight to the app
+  useEffect(() => {
+    if (isHostLoggedIn && hostUser) {
+      router.replace('/host/events');
+    }
+  }, [isHostLoggedIn, hostUser, router]);
 
   // Guest Join State
   const [guestCode, setGuestCode] = useState('');
@@ -40,18 +47,36 @@ export default function HomePage() {
     setGuestLoading(true);
 
     try {
-      const found = await lookupEvent(clean);
+      // Clean input in case user pasted a URL e.g. /user/482910
+      let codeToLookup = clean;
+      if (clean.includes('/user/')) {
+        const afterUser = clean.split('/user/')[1] || '';
+        codeToLookup = afterUser.split('/')[0].split('?')[0];
+      }
+
+      const found = await lookupEvent(codeToLookup);
       if (found) {
-        router.push(`/user/${found.id}`);
+        // Direct guests to the actual celebration:
+        // If already joined with a name, go straight to gallery, otherwise to the event join onboarding
+        const destination = hasJoined ? `/user/${found.id}/gallery` : `/user/${found.id}`;
+        router.push(destination);
         return;
       }
-      setGuestError('Event not found. Please double-check the code on your table card.');
+      setGuestError('Event not found. Please double-check the 6-digit PIN.');
     } catch (err) {
       setGuestError('Failed to verify code. Please check your internet connection.');
     } finally {
       setGuestLoading(false);
     }
   };
+
+  if (isHostLoggedIn && hostUser) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#2D4A3A] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen bg-[#FAF8F5] text-[#1C2820] overflow-x-hidden selection:bg-[#2D4A3A]/15 selection:text-[#1C2820]">
@@ -162,7 +187,7 @@ export default function HomePage() {
               </div>
 
               {/* Right Column: Interactive Code Console */}
-              <div className="lg:col-span-5 bg-[#FAF8F5] p-5 sm:p-7 rounded-[28px] border border-[#1C2820]/[0.06] space-y-4 shadow-sm">
+              <div className="lg:col-span-5 bg-[#FAF8F5] p-5 sm:p-7 rounded-2xl border border-[#1C2820]/[0.08] space-y-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#1C2820]/75">
                     Event Passcode
@@ -183,13 +208,14 @@ export default function HomePage() {
                         placeholder="e.g. 482 910 or EVENT-1"
                         value={guestCode}
                         onChange={(e) => {
-                          setGuestCode(e.target.value);
+                          const val = e.target.value;
+                          setGuestCode(val);
                           if (guestError) setGuestError('');
                         }}
-                        className={`w-full h-15 pl-4 pr-11 rounded-2xl bg-white border text-center sm:text-left text-[18px] sm:text-[19px] font-mono font-bold tracking-wider text-[#1C2820] placeholder:font-sans placeholder:font-normal placeholder:tracking-normal placeholder:text-[14px] placeholder:text-[#1C2820]/35 focus:outline-none focus:ring-4 transition-all ${
+                        className={`w-full h-14 pl-4 pr-11 rounded-xl bg-white border text-center sm:text-left text-[18px] sm:text-[19px] font-mono font-bold tracking-wider text-[#1C2820] placeholder:font-sans placeholder:font-normal placeholder:tracking-normal placeholder:text-[14px] placeholder:text-[#1C2820]/35 focus:outline-none focus:ring-4 transition-all ${
                           guestError
                             ? 'border-red-400 focus:ring-red-100'
-                            : 'border-[#1C2820]/12 focus:border-[#2D4A3A] focus:ring-[#2D4A3A]/10'
+                            : 'border-[#1C2820]/15 focus:border-[#2D4A3A] focus:ring-[#2D4A3A]/10'
                         }`}
                       />
                       {guestCode.length > 0 && (
@@ -216,7 +242,7 @@ export default function HomePage() {
                   <button
                     type="submit"
                     disabled={guestLoading}
-                    className="w-full h-14 rounded-2xl bg-[#2D4A3A] hover:bg-[#233A2E] text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_28px_rgba(45,74,58,0.25)] hover:shadow-[0_14px_34px_rgba(45,74,58,0.3)] active:scale-[0.985] transition-all press disabled:opacity-60"
+                    className="w-full h-14 rounded-xl bg-[#2D4A3A] hover:bg-[#233A2E] text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-[0_10px_28px_rgba(45,74,58,0.2)] hover:shadow-[0_14px_34px_rgba(45,74,58,0.25)] active:scale-[0.985] transition-all press disabled:opacity-60"
                   >
                     {guestLoading ? (
                       <>
@@ -316,7 +342,7 @@ export default function HomePage() {
                 Original-Res Vault & ZIP Export
               </h3>
               <p className="text-sm text-[#1C2820]/70 leading-relaxed">
-                Social media platforms compress and shrink your photos. Memorie Aisle stores each file in its original captured quality so you can print albums, frame photos, and keep them for a lifetime.
+                Social media platforms compress and shrink your photos. Memory Aisle stores each file in its original captured quality so you can print albums, frame photos, and keep them for a lifetime.
               </p>
               <div className="pt-2 flex flex-wrap gap-2 text-[11px] font-semibold text-[#2D4A3A]">
                 <span className="px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#1C2820]/10">1-Click Full ZIP</span>
@@ -336,7 +362,7 @@ export default function HomePage() {
               Seamless Workflow
             </span>
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-[#1C2820] mt-3">
-              How Memorie Aisle Works
+              How Memory Aisle Works
             </h2>
           </div>
 
@@ -406,14 +432,14 @@ export default function HomePage() {
         {/* ========================================================= */}
         <footer className="border-t border-[#1C2820]/[0.08] bg-white py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2.5">
+            <Link href="/" className="flex items-center gap-2.5 hover:opacity-85 transition-opacity">
               <span className="w-7 h-7 rounded-[8px] bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-base font-bold">
-                m
+                M
               </span>
               <span className="font-serif text-xl tracking-tight font-medium text-[#1C2820]">
-                memorie aisle
+                Memory Aisle
               </span>
-            </div>
+            </Link>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-[#1C2820]/65">
               <a href="#features" className="hover:text-[#1C2820] transition-colors">
@@ -431,7 +457,7 @@ export default function HomePage() {
             </div>
 
             <p className="text-[11px] text-[#1C2820]/45 text-center md:text-right">
-              © 2026 Memorie Aisle. Built for modern weddings.
+              © 2026 Memory Aisle. Built for modern weddings.
             </p>
           </div>
         </footer>

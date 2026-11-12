@@ -157,15 +157,16 @@ export default function JoinPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/50" />
 
             {/* Brand Capsule (Top Left) */}
-            <div
-              className="absolute left-5 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/35 backdrop-blur-md border border-white/15 text-white shadow-sm"
+            <Link
+              href="/"
+              className="absolute left-5 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/35 backdrop-blur-md border border-white/15 text-white shadow-sm hover:bg-black/50 transition-colors"
               style={{ top: 'calc(env(safe-area-inset-top) + 0.85rem)' }}
             >
               <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center font-serif text-[13px] font-bold">
-                m
+                M
               </span>
-              <span className="font-serif text-[15px] tracking-tight font-medium">memorie aisle</span>
-            </div>
+              <span className="font-serif text-[15px] tracking-tight font-medium">Memory Aisle</span>
+            </Link>
 
             {/* Passcode Pill (Top Right, if present) */}
             {activeEvent.code && (

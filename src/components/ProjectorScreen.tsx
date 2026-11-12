@@ -259,7 +259,7 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
             <div className="shrink-0 flex items-center justify-between sm:justify-end gap-3 sm:gap-4 p-2 sm:p-2.5 pl-3.5 sm:pl-5 rounded-[18px] sm:rounded-[22px] bg-white/95 backdrop-blur-2xl border border-white/80 shadow-[0_12px_35px_rgba(28,40,32,0.10)] sm:shadow-[0_16px_45px_rgba(28,40,32,0.12)]">
               <div className="text-left sm:text-right">
                 <p className="text-[12px] sm:text-[14px] font-medium text-[#1C2820]/60 leading-tight">
-                  <span className="hidden sm:inline">www.memorieaisle.com/join</span>
+                  <span className="hidden sm:inline">www.memoryaisle.com/join</span>
                   <span className="sm:hidden">Join Event</span>
                 </p>
                 <p className="mt-0.5 sm:mt-1 text-[20px] sm:text-[clamp(24px,2.4vw,34px)] font-semibold tracking-tight leading-none tabular-nums text-[#2D4A3A]">

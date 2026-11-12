@@ -79,16 +79,16 @@ export default function Navbar() {
           {/* Left: Brand & Active Event Title */}
           <div className="flex items-center gap-6 min-w-0">
             <Link
-              href={isLandingPage ? '/' : !isGuest ? '/host/events' : !inGuestArea ? '/host/login' : hasJoined ? `${base}/gallery` : base}
+              href={!isGuest ? '/host/events' : '/'}
               className="flex items-center gap-2.5 min-w-0 press"
             >
               <span className="w-8 h-8 rounded-[10px] bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shrink-0">
-                m
+                M
               </span>
               <div className="flex flex-col min-w-0">
                 {/* One style everywhere; only the size changes on larger screens */}
                 <span className="font-serif text-[20px] md:text-2xl font-medium tracking-tight text-[#1C2820] leading-none truncate">
-                  memorie aisle
+                  Memory Aisle
                 </span>
                 {brandSubtitle && (
                   <span className="text-[10px] uppercase tracking-[0.14em] text-[#2D4A3A] font-bold leading-tight mt-0.5 truncate max-w-xs">
