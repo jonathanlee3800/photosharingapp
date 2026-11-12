@@ -197,6 +197,18 @@ const toHostUser = (user: any): HostUser => ({
   avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
 });
 
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+// Event dates are saved as text like "12 November 2026"; turn that into something sortable
+const eventDateValue = (e: { date?: string; createdAt?: string }): number => {
+  const m = (e.date || '').trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  const month = m ? MONTHS.indexOf(m[2].toLowerCase()) : -1;
+  if (m && month >= 0) return Date.UTC(Number(m[3]), month, Number(m[1]));
+  const parsed = Date.parse(e.date || '');
+  if (!Number.isNaN(parsed)) return parsed;
+  return Date.parse(e.createdAt || '') || 0;
+};
+
 // How long each photo shows in the slideshow
 const SLIDE_MS = 5500;
 
@@ -644,7 +656,12 @@ export function EventProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const hostEvents = hostUser ? events.filter((e) => e.ownerId === hostUser.id) : [];
+  // A host's events, newest event date first (then most recently created), in a fixed order
+  const hostEvents = hostUser
+    ? events
+        .filter((e) => e.ownerId === hostUser.id)
+        .sort((a, b) => eventDateValue(b) - eventDateValue(a) || (b.createdAt || '').localeCompare(a.createdAt || ''))
+    : [];
 
   // Find active event
   const currentEvent =
