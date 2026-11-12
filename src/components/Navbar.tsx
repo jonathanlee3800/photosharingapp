@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Image as ImageIcon, Play, Heart, Plus, Download, LogOut } from 'lucide-react';
+import { Image as ImageIcon, Play, Heart, Trophy, Plus, Download, LogOut } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { INITIAL_EVENTS } from '@/lib/initialData';
 
@@ -24,12 +24,22 @@ export default function Navbar() {
     return null;
   }
 
-  const base = `/user/${currentEvent.id}`;
-
   // The join screen has a full-bleed cover photo, so it runs edge to edge with no bar
-  if (isGuest && !hasJoined && decodeURIComponent(pathname || '').toLowerCase() === base.toLowerCase()) {
+  const cleanPath = decodeURIComponent(pathname || '').toLowerCase().replace(/\/$/, '');
+  const pathParts = cleanPath.split('/').filter(Boolean);
+  const isJoinPage =
+    cleanPath === '/join' ||
+    cleanPath === '/user/join' ||
+    (pathParts.length === 2 && pathParts[0] === 'user' && !['gallery', 'slideshow', 'vote', 'upload', 'projector'].includes(pathParts[1]));
+
+  if (isGuest && isJoinPage) {
     return null;
   }
+
+  const base =
+    pathParts[0] === 'user' && pathParts[1] && !['gallery', 'slideshow', 'vote', 'upload', 'projector'].includes(pathParts[1])
+      ? `/user/${pathParts[1]}`
+      : `/user/${currentEvent.id}`;
 
   // Event-specific guest items (event name, guest links, Share Moment, avatar) only belong on guest
   // pages. On host pages a visitor who is not signed in (e.g. /host/login) just sees the brand.
@@ -42,7 +52,7 @@ export default function Navbar() {
     ? [
         { label: 'Gallery', href: `${base}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
         { label: 'Live Slideshow', href: `${base}/slideshow`, matchSuffix: '/slideshow', icon: Play },
-        { label: 'Live Voting', href: `${base}/vote`, matchSuffix: '/vote', icon: Heart },
+        { label: 'Live Photo Contest', href: `${base}/vote`, matchSuffix: '/vote', icon: Trophy },
       ]
     : [];
 

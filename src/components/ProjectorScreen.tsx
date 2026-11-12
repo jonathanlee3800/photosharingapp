@@ -167,8 +167,8 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
           />
         )}
         {/* Soft wash overlay matching WithLove palette */}
-        <div className="absolute inset-0 bg-[#FAF8F5]/35 mix-blend-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#FAF8F5]/85 via-transparent to-[#FAF8F5]/50" />
+        <div className="absolute inset-0 bg-[#FAF8F5]/35" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#FAF8F5]/85 via-[#FAF8F5]/15 to-[#FAF8F5]/50" />
       </div>
 
       {/* 2. Top Header (Airy, discreet, hidden in Clean Cinema Mode) */}
@@ -197,8 +197,8 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
       )}
 
       {/* Screen Edge Ambient Blending Vignettes (Dissolves carousel into sides of screen) */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-6 sm:w-32 md:w-48 bg-gradient-to-r from-[#FAF8F5]/85 via-[#FAF8F5]/30 to-transparent z-25" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-6 sm:w-32 md:w-48 bg-gradient-to-l from-[#FAF8F5]/85 via-[#FAF8F5]/30 to-transparent z-25" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-6 sm:w-32 md:w-48 bg-gradient-to-r from-[#FAF8F5]/85 via-[#FAF8F5]/30 to-[#FAF8F5]/0 z-25" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-6 sm:w-32 md:w-48 bg-gradient-to-l from-[#FAF8F5]/85 via-[#FAF8F5]/30 to-[#FAF8F5]/0 z-25" />
 
       {/* 3. The Photo Carousel Stage (Maximized Hero & Infinite Filmstrip Ribbon) */}
       <div

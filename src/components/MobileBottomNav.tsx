@@ -11,28 +11,36 @@ export default function MobileBottomNav() {
   const pathname = usePathname() || '';
   const { currentEvent, isHostLoggedIn, hasJoined, votingRound } = useEvent();
 
-  const base = `/user/${currentEvent.id}`;
-  // Join codes may arrive in any case (e.g. typed by hand), so compare case-insensitively
-  const onJoinPage = decodeURIComponent(pathname).toLowerCase() === base.toLowerCase();
+  const cleanPath = decodeURIComponent(pathname || '').toLowerCase().replace(/\/$/, '');
+  const pathParts = cleanPath.split('/').filter(Boolean);
+  const isJoinPage =
+    cleanPath === '/join' ||
+    cleanPath === '/user/join' ||
+    (pathParts.length === 2 && pathParts[0] === 'user' && !['gallery', 'slideshow', 'vote', 'upload', 'projector'].includes(pathParts[1]));
 
   // Guest-only, and not on: full-screen projector, the upload flow (has its own bottom button),
-  // or the join screen before the guest has entered their name
+  // or the join / welcome screen
   if (
     isHostLoggedIn ||
     !pathname.startsWith('/user') ||
     pathname.endsWith('/projector') ||
     pathname.endsWith('/upload') ||
-    (onJoinPage && !hasJoined)
+    isJoinPage
   ) {
     return null;
   }
+
+  const base =
+    pathParts[0] === 'user' && pathParts[1]
+      ? `/user/${pathParts[1]}`
+      : `/user/${currentEvent.id}`;
 
   const tabs = [
     { label: 'Gallery', href: `${base}/gallery`, icon: ImageIcon, active: pathname.endsWith('/gallery') },
     { label: 'Slideshow', href: `${base}/slideshow`, icon: Play, active: pathname.endsWith('/slideshow') },
     { label: 'Share', href: `${base}/upload`, icon: Camera, active: pathname.endsWith('/upload') },
     {
-      label: 'Contest',
+      label: 'Photo Contest',
       href: `${base}/vote`,
       icon: Trophy,
       active: pathname.endsWith('/vote'),

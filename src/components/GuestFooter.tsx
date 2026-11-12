@@ -10,7 +10,14 @@ export default function GuestFooter() {
   const pathname = usePathname();
   const { isHostLoggedIn } = useEvent();
 
-  // Hosts already have host navigation; the host portal and projector screens have their own chrome
+  const cleanPath = decodeURIComponent(pathname || '').toLowerCase().replace(/\/$/, '');
+  const pathParts = cleanPath.split('/').filter(Boolean);
+  const isJoinPage =
+    cleanPath === '/join' ||
+    cleanPath === '/user/join' ||
+    (pathParts.length === 2 && pathParts[0] === 'user' && !['gallery', 'slideshow', 'vote', 'upload', 'projector'].includes(pathParts[1]));
+
+  // Hosts already have host navigation; the host portal, projector, and join screens have their own chrome
   if (
     isHostLoggedIn ||
     pathname?.startsWith('/host') ||
@@ -19,7 +26,8 @@ export default function GuestFooter() {
     pathname === '/join' ||
     pathname?.endsWith('/projector') || pathname?.endsWith('/qr') ||
     pathname?.endsWith('/slideshow') ||
-    pathname?.endsWith('/upload')
+    pathname?.endsWith('/upload') ||
+    isJoinPage
   ) {
     return null;
   }

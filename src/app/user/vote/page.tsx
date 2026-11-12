@@ -2,7 +2,16 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Heart, Trophy, Clock, Lock, Camera, Check } from 'lucide-react';
+import {
+  Heart,
+  Trophy,
+  Clock,
+  Lock,
+  Camera,
+  Check,
+  Sparkles,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import confetti from 'canvas-confetti';
 import PhotoFrame from '@/components/PhotoFrame';
@@ -39,23 +48,110 @@ export default function VotePage() {
     } catch (e) {}
   };
 
-  // No round running: nothing to vote on, just let guests know
+  // No round running: explanatory waiting state following Apple UI guidelines
   if (!votingRound.isOpen) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center animate-fade-up">
-        <div className="w-20 h-20 rounded-full bg-[#E9EFEA] text-[#2D4A3A] flex items-center justify-center">
-          <Trophy className="w-9 h-9" strokeWidth={1.6} />
+      <div className="min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center px-4 sm:px-6 py-12 sm:py-16 text-center animate-fade-up max-w-xl mx-auto">
+        {/* Live status badge */}
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E9EFEA] border border-[#2D4A3A]/10 text-[12px] font-semibold text-[#2D4A3A] mb-5 shadow-xs">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2D4A3A]" />
+          </span>
+          <span>Live Photo Contest • Waiting to start</span>
         </div>
-        <h1 className="font-serif text-[34px] leading-tight font-medium text-[#1C2820] mt-6">No live contest right now</h1>
-        <p className="text-[15px] leading-relaxed text-[#1C2820]/55 mt-2 max-w-xs">
-          The hosts will start a photo contest during the celebration. This page updates automatically when it starts.
+
+        {/* Apple-style hero icon container */}
+        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-[28px] bg-gradient-to-b from-[#E9EFEA] to-[#DCE8DF] text-[#2D4A3A] flex items-center justify-center shadow-[0_12px_36px_rgba(45,74,58,0.14)] ring-1 ring-black/[0.04] mb-5">
+          <Trophy className="w-10 h-10 sm:w-11 sm:h-11 text-[#2D4A3A]" strokeWidth={1.75} />
+        </div>
+
+        {/* Editorial Heading & Subtitle */}
+        <h1 className="font-serif text-[30px] sm:text-[40px] leading-[1.1] font-medium tracking-tight text-[#1C2820]">
+          The photo contest hasn’t started yet
+        </h1>
+        <p className="text-[15px] sm:text-[16px] leading-relaxed text-[#1C2820]/65 mt-3 max-w-md mx-auto">
+          During the celebration, the hosts will launch live photo contests where everyone votes for their favourite wedding moments in real time.
         </p>
-        <Link
-          href={`/user/${currentEvent.id}/gallery`}
-          className="mt-8 h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center press"
-        >
-          Back to the gallery
-        </Link>
+
+        {/* Apple-style "What to expect" informational card */}
+        <div className="w-full mt-7 p-5 sm:p-6 rounded-[24px] bg-white border border-[#1C2820]/[0.06] shadow-[0_8px_30px_rgba(28,40,32,0.05)] text-left space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#1C2820]/[0.06]">
+            <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[#2D4A3A] flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> How it works
+            </span>
+            <span className="text-[12px] text-[#1C2820]/45 font-medium">3 quick steps</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3.5 pt-0.5">
+            {/* Step 1 */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-[#E9EFEA] text-[#2D4A3A] flex items-center justify-center shrink-0 mt-0.5">
+                <Camera className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[14px] font-semibold text-[#1C2820] leading-snug">
+                  1. Snap & share candid moments
+                </h3>
+                <p className="text-[13px] text-[#1C2820]/60 leading-normal mt-0.5">
+                  Upload your best shots to the event gallery under the tag prompts.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-[#FAF0E6] text-[#A66038] flex items-center justify-center shrink-0 mt-0.5">
+                <Heart className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[14px] font-semibold text-[#1C2820] leading-snug">
+                  2. Vote live on your phone
+                </h3>
+                <p className="text-[13px] text-[#1C2820]/60 leading-normal mt-0.5">
+                  When the hosts open voting, tap your favourite contender right here.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-[#FDF4E5] text-[#B47C1C] flex items-center justify-center shrink-0 mt-0.5">
+                <Trophy className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[14px] font-semibold text-[#1C2820] leading-snug">
+                  3. Watch the live big screen
+                </h3>
+                <p className="text-[13px] text-[#1C2820]/60 leading-normal mt-0.5">
+                  Live scores light up the projector and the winning photo is crowned!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Automatic update reassurance */}
+          <div className="pt-3 border-t border-[#1C2820]/[0.06] flex items-center gap-2 text-[12px] text-[#1C2820]/55">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#74A886] shrink-0" />
+            <span>No need to refresh — this screen will automatically activate the moment voting opens.</span>
+          </div>
+        </div>
+
+        {/* Clear Call-To-Action buttons */}
+        <div className="w-full mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            href={`/user/${currentEvent.id}/upload`}
+            className="w-full sm:w-auto h-12 px-6 rounded-2xl bg-[#2D4A3A] text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-[0_8px_25px_rgba(45,74,58,0.20)] press hover:bg-[#233a2e] transition-colors"
+          >
+            <Camera className="w-4 h-4" /> Share a photo now
+          </Link>
+          <Link
+            href={`/user/${currentEvent.id}/gallery`}
+            className="w-full sm:w-auto h-12 px-6 rounded-2xl bg-white border border-[#1C2820]/[0.10] text-[#1C2820] text-[15px] font-semibold flex items-center justify-center gap-2 press hover:bg-[#FAF8F5] transition-colors"
+          >
+            <ImageIcon className="w-4 h-4 text-[#1C2820]/60" /> Browse gallery
+          </Link>
+        </div>
       </div>
     );
   }
