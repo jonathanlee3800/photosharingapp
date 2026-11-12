@@ -1,8 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Play, Pause, ChevronRight, ChevronLeft, Maximize2, X, Pin } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  ChevronRight,
+  ChevronLeft,
+  Maximize2,
+  X,
+  Pin,
+  Tv,
+  QrCode,
+} from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import { generateQrDataUrl } from '@/lib/qrHelper';
 import { formatPin } from '@/lib/pin';
@@ -10,7 +20,15 @@ import SlideStage from '@/components/SlideStage';
 
 const CONTROLS_HIDE_MS = 3000;
 
-/** The big screen: one photo at a time on a calm stage, with a single card showing how to join. */
+/**
+ * Big Screen Projector:
+ * - Full-bleed ambient color aura covering the entire screen edge-to-edge.
+ * - Phone responsive: adapts hero bounds, bottom join card, and controls for mobile portrait & landscape.
+ * - Touch swipe gestures for seamless navigation on phones and tablets.
+ * - Standardized 2-format carousel (vertical 3:4 and horizontal 4:3) with tucked side cards.
+ * - Nav controls moved down to bottom center (auto-hides on idle).
+ * - Cinema Mode toggle: Hides QR code / PIN / join widgets to showcase only the photos & well-wishes.
+ */
 export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
   const {
     currentEvent,
@@ -25,16 +43,22 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
     isSlideshowPlaying,
     toggleSlideshowPlaying,
   } = useEvent();
-  // Only the host may skip, pause or resume the slideshow; anyone else just watches
+
   const canControl = isHostLoggedIn;
   const roundTotalVotes = currentEvent.roundVoteTotal ?? 0;
 
+  // Cinema Mode: when active, hides QR code, PIN and extra widgets to display ONLY photos & well-wishes
+  const [isCleanMode, setIsCleanMode] = useState(false);
+
   const [qrDataUrl, setQrDataUrl] = useState('');
   useEffect(() => {
-    generateQrDataUrl(`${window.location.origin}/user/${currentEvent.id}`, { width: 320, margin: 1 }).then(setQrDataUrl);
+    generateQrDataUrl(`${window.location.origin}/user/${currentEvent.id}`, {
+      width: 320,
+      margin: 1,
+    }).then(setQrDataUrl);
   }, [currentEvent.id]);
 
-  // Controls and the pointer appear when the mouse moves, then get out of the way
+  // Controls appear on mouse/touch interaction, then fade out after 3 seconds of inactivity
   const [showControls, setShowControls] = useState(true);
   useEffect(() => {
     let timer = setTimeout(() => setShowControls(false), CONTROLS_HIDE_MS);
@@ -54,9 +78,16 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
     };
   }, []);
 
-  // Keyboard shortcuts for presenting (host only)
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  };
+
+  // Keyboard shortcuts for seamless presenting
   useEffect(() => {
-    if (!canControl) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
@@ -65,104 +96,234 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
         e.preventDefault();
         cyclePrevSlide();
       } else if (e.key === 'p' || e.key === 'P') {
-        toggleSlideshowPlaying();
+        if (canControl) toggleSlideshowPlaying();
+      } else if (e.key === 'q' || e.key === 'Q' || e.key === 'c' || e.key === 'C') {
+        setIsCleanMode((prev) => !prev);
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [canControl, cycleNextSlide, cyclePrevSlide, toggleSlideshowPlaying]);
+
+  // Touch swipe support for mobile phones and touchscreens
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+    // Horizontal swipe gesture detection (minimum 40px swipe)
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+      if (deltaX < 0) {
+        cycleNextSlide();
+      } else {
+        cyclePrevSlide();
+      }
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
   if (!active) return null;
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-    else document.exitFullscreen?.();
-  };
-
-  const controlClass = 'w-11 h-11 rounded-full flex items-center justify-center text-[#2D4A3A] hover:bg-[#E9EFEA] transition-colors';
+  const controlClass =
+    'w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-[#2D4A3A] hover:bg-[#E9EFEA] transition-colors shrink-0';
 
   return (
     <div
-      className={`relative w-full h-full min-h-[100dvh] overflow-hidden bg-[#FAF8F5] text-[#1C2820] font-sans select-none flex flex-col ${
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className={`relative w-full h-full min-h-[100dvh] overflow-hidden bg-[#FAF8F5] text-[#1C2820] font-sans select-none flex flex-col justify-between ${
         showControls ? '' : 'cursor-none'
       }`}
     >
-      {/* Status */}
-      <div className="relative z-10 shrink-0 h-[72px] px-10 flex items-center justify-between">
-        <span className="font-serif text-[26px] font-medium tracking-tight text-[#1C2820] truncate">{currentEvent.title}</span>
-        {votingRound.isActive ? (
-          <span className="h-10 px-4 rounded-full bg-[#E9EFEA] flex items-center gap-2.5 text-[15px] font-medium text-[#2D4A3A]">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2D4A3A]" />
-            </span>
-            <span className="tabular-nums font-semibold">{roundTotalVotes}</span>
-            <span className="text-[#2D4A3A]/70">{roundTotalVotes === 1 ? 'total vote' : 'total votes'}</span>
-          </span>
-        ) : spotlightId ? (
-          <span className="h-10 px-4 rounded-full bg-[#E9EFEA] flex items-center gap-2 text-[15px] font-medium text-[#2D4A3A]">
-            <Pin className="w-3.5 h-3.5" /> Pinned
-          </span>
-        ) : null}
+      {/* 1. Full-Bleed Ambient Aura extending across the ENTIRE page */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
+        {active.type === 'video' ? (
+          <video
+            key={`ambient-${active.id}`}
+            src={active.url}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover blur-[80px] sm:blur-[140px] opacity-40 scale-125 transform-gpu transition-opacity duration-1000"
+          />
+        ) : (
+          <img
+            key={`ambient-${active.id}`}
+            src={active.url}
+            alt=""
+            aria-hidden="true"
+            className="w-full h-full object-cover blur-[80px] sm:blur-[140px] opacity-40 scale-125 transform-gpu animate-ambient-pulse transition-opacity duration-1000"
+          />
+        )}
+        {/* Soft wash overlay matching WithLove palette */}
+        <div className="absolute inset-0 bg-[#FAF8F5]/35 mix-blend-overlay" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#FAF8F5]/85 via-transparent to-[#FAF8F5]/50" />
       </div>
 
-      {/* The photo */}
-      <div className="relative z-10 flex-1 min-h-0 mx-10">
-        <SlideStage active={active} memories={publicMemories} />
-      </div>
-
-      {/* Who shared it, and how to join */}
-      <div className="relative z-10 shrink-0 px-10 pt-6 pb-8 flex items-end justify-between gap-10">
-        <div key={active.id} className="min-w-0 flex-1 animate-[slideFade_900ms_ease-out_both]">
-          {active.caption && (
-            <h2 className="font-serif text-[clamp(30px,3.6vw,56px)] font-medium tracking-tight leading-[1.08] line-clamp-2">
-              {active.caption}
-            </h2>
-          )}
-          <p className="mt-2 text-[clamp(15px,1.4vw,21px)] text-[#1C2820]/55 truncate">
-            By <span className="text-[#2D4A3A] font-semibold">{active.guestName}</span>
-          </p>
+      {/* 2. Top Header (Airy, discreet, hidden in Clean Cinema Mode) */}
+      {!isCleanMode && (
+        <div className="relative z-10 shrink-0 h-[44px] sm:h-[54px] px-4 sm:px-10 flex items-center justify-between">
+          <span className="font-serif text-[18px] sm:text-[24px] font-medium tracking-tight text-[#1C2820] truncate drop-shadow-xs max-w-[55vw] sm:max-w-none">
+            {currentEvent.title}
+          </span>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {votingRound.isActive ? (
+              <span className="h-7.5 sm:h-8.5 px-2.5 sm:px-3 rounded-full bg-white/90 backdrop-blur-xl border border-white/60 shadow-sm flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-[13px] font-medium text-[#2D4A3A]">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2D4A3A] opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2D4A3A]" />
+                </span>
+                <span className="tabular-nums font-semibold">{roundTotalVotes}</span>
+                <span className="text-[#2D4A3A]/70">{roundTotalVotes === 1 ? 'vote' : 'votes'}</span>
+              </span>
+            ) : spotlightId ? (
+              <span className="h-7.5 sm:h-8.5 px-2.5 sm:px-3 rounded-full bg-white/90 backdrop-blur-xl border border-white/60 shadow-sm flex items-center gap-1.5 text-[11px] sm:text-[13px] font-medium text-[#2D4A3A]">
+                <Pin className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Pinned
+              </span>
+            ) : null}
+          </div>
         </div>
+      )}
 
-        <div className="shrink-0 flex items-center gap-5 p-3 pl-6 rounded-[28px] bg-white border border-[#1C2820]/[0.06] shadow-[0_16px_50px_rgba(45,74,58,0.12)]">
-          <div className="text-right">
-            <p className="text-[15px] font-medium text-[#1C2820]/60 leading-tight">www.memorieaisle.com/join</p>
-            <p className="mt-1.5 text-[clamp(30px,3vw,44px)] font-semibold tracking-tight leading-none tabular-nums text-[#2D4A3A]">
-              {formatPin(currentEvent.code)}
+      {/* Screen Edge Ambient Blending Vignettes (Dissolves carousel into sides of screen) */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-6 sm:w-32 md:w-48 bg-gradient-to-r from-[#FAF8F5]/85 via-[#FAF8F5]/30 to-transparent z-25" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-6 sm:w-32 md:w-48 bg-gradient-to-l from-[#FAF8F5]/85 via-[#FAF8F5]/30 to-transparent z-25" />
+
+      {/* 3. The Photo Carousel Stage (Maximized Hero & Infinite Filmstrip Ribbon) */}
+      <div
+        className={`relative z-10 flex-1 min-h-0 w-full flex items-center justify-center ${
+          isCleanMode ? 'my-0 sm:my-1' : 'my-0 sm:my-1'
+        }`}
+      >
+        <div
+          className={`w-full h-full flex items-center justify-center ${
+            isCleanMode
+              ? 'max-h-[66vh] sm:max-h-[82vh] md:max-h-[86vh] lg:max-h-[89vh]'
+              : 'max-h-[52vh] sm:max-h-[74vh] md:max-h-[79vh] lg:max-h-[83vh]'
+          }`}
+        >
+          <SlideStage
+            active={active}
+            memories={publicMemories}
+            showPeeks={true}
+            onPrev={cyclePrevSlide}
+            onNext={cycleNextSlide}
+          />
+        </div>
+      </div>
+
+      {/* 4. Bottom Section: Well-Wishes & Join QR Code */}
+      <div
+        className={`relative z-10 shrink-0 px-4 sm:px-8 md:px-12 ${
+          isCleanMode ? 'pt-1 pb-16 sm:pb-6' : 'pt-1 pb-16 sm:pb-5'
+        }`}
+      >
+        {isCleanMode ? (
+          /* Cinema Clean Mode: ONLY the photos, well-wishes & guest author centered */
+          <div key={active.id} className="max-w-4xl mx-auto text-center px-2 sm:px-4 animate-fade-up">
+            {active.caption && (
+              <h2 className="font-serif text-[clamp(18px,4vw,44px)] font-medium tracking-tight leading-[1.2] text-[#1C2820] drop-shadow-xs">
+                “{active.caption}”
+              </h2>
+            )}
+            <p className="mt-1 text-[clamp(12px,1.2vw,17px)] text-[#1C2820]/70 font-medium">
+              Shared by <span className="text-[#2D4A3A] font-semibold">{active.guestName}</span>
             </p>
-            <p className="mt-1.5 text-[13px] text-[#1C2820]/45 leading-tight">PIN, or scan the QR code</p>
           </div>
-          <div className="w-[108px] h-[108px] bg-white rounded-[18px] shrink-0">
-            {qrDataUrl && <img src={qrDataUrl} alt={`QR code for ${currentEvent.title}`} className="w-full h-full object-contain" />}
+        ) : (
+          /* Standard Mode: Well-wishes on the left, Join Card & QR code on the right (responsive on phone) */
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-3 sm:gap-12">
+            <div key={active.id} className="min-w-0 flex-1 animate-fade-up text-left">
+              {active.caption && (
+                <h2 className="font-serif text-[clamp(17px,3vw,44px)] font-medium tracking-tight leading-[1.18] line-clamp-2 text-[#1C2820] drop-shadow-xs">
+                  {active.caption}
+                </h2>
+              )}
+              <p className="mt-1 text-[clamp(12px,1.2vw,18px)] text-[#1C2820]/65 truncate">
+                Shared by <span className="text-[#2D4A3A] font-semibold">{active.guestName}</span>
+              </p>
+            </div>
+
+            {/* Join QR Card */}
+            <div className="shrink-0 flex items-center justify-between sm:justify-end gap-3 sm:gap-4 p-2 sm:p-2.5 pl-3.5 sm:pl-5 rounded-[18px] sm:rounded-[22px] bg-white/95 backdrop-blur-2xl border border-white/80 shadow-[0_12px_35px_rgba(28,40,32,0.10)] sm:shadow-[0_16px_45px_rgba(28,40,32,0.12)]">
+              <div className="text-left sm:text-right">
+                <p className="text-[12px] sm:text-[14px] font-medium text-[#1C2820]/60 leading-tight">
+                  <span className="hidden sm:inline">www.memorieaisle.com/join</span>
+                  <span className="sm:hidden">Join Event</span>
+                </p>
+                <p className="mt-0.5 sm:mt-1 text-[20px] sm:text-[clamp(24px,2.4vw,34px)] font-semibold tracking-tight leading-none tabular-nums text-[#2D4A3A]">
+                  {formatPin(currentEvent.code)}
+                </p>
+                <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[12px] text-[#1C2820]/45 leading-tight">
+                  <span className="hidden sm:inline">PIN, or scan the QR code</span>
+                  <span className="sm:hidden">PIN, or scan QR</span>
+                </p>
+              </div>
+              <div className="w-[52px] h-[52px] sm:w-[92px] sm:h-[92px] bg-white rounded-[12px] sm:rounded-[16px] p-1 shrink-0 border border-[#1C2820]/5 shadow-xs">
+                {qrDataUrl && (
+                  <img
+                    src={qrDataUrl}
+                    alt={`QR code for ${currentEvent.title}`}
+                    className="w-full h-full object-contain"
+                  />
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Reactions */}
+      {/* 5. Floating Emoji Reactions */}
       <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
         {floatingEmojis.map((item) => (
-          <div key={item.id} style={{ left: `${item.left}%` }} className="absolute bottom-44 text-6xl animate-rise">
+          <div
+            key={item.id}
+            style={{ left: `${item.left}%` }}
+            className="absolute bottom-40 text-5xl sm:text-6xl animate-rise"
+          >
             {item.emoji}
           </div>
         ))}
       </div>
 
-      {/* Controls fade in when the mouse moves */}
+      {/* 6. Host Controls Bar (MOVED DOWN TO BOTTOM CENTER) */}
       <div
-        className={`absolute z-30 top-4 left-1/2 -translate-x-1/2 transition-opacity duration-300 ${
+        className={`absolute z-30 bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 transition-opacity duration-300 max-w-[95vw] ${
           showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="flex items-center gap-1 p-1.5 rounded-full bg-white/90 backdrop-blur-2xl border border-[#1C2820]/[0.08] shadow-[0_12px_40px_rgba(45,74,58,0.18)]">
+        <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 rounded-full bg-white/95 backdrop-blur-2xl border border-[#1C2820]/[0.08] shadow-[0_12px_40px_rgba(45,74,58,0.18)]">
           {exitHref && (
-            <Link href={exitHref} className={controlClass} title="Back to overview" aria-label="Back to overview">
-              <X className="w-[18px] h-[18px]" />
+            <Link
+              href={exitHref}
+              className={controlClass}
+              title="Back to overview"
+              aria-label="Back to overview"
+            >
+              <X className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
             </Link>
           )}
           {canControl && (
             <>
-              <button type="button" onClick={cyclePrevSlide} className={controlClass} title="Previous (Left arrow)" aria-label="Previous photo">
-                <ChevronLeft className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={cyclePrevSlide}
+                className={controlClass}
+                title="Previous (Left arrow)"
+                aria-label="Previous photo"
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button
                 type="button"
@@ -171,15 +332,48 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
                 title={isSlideshowPlaying ? 'Pause (P)' : 'Play (P)'}
                 aria-label={isSlideshowPlaying ? 'Pause slideshow' : 'Play slideshow'}
               >
-                {isSlideshowPlaying ? <Pause className="w-[18px] h-[18px]" /> : <Play className="w-[18px] h-[18px]" />}
+                {isSlideshowPlaying ? (
+                  <Pause className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                ) : (
+                  <Play className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                )}
               </button>
-              <button type="button" onClick={cycleNextSlide} className={controlClass} title="Next (Right arrow or Space)" aria-label="Next photo">
-                <ChevronRight className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={cycleNextSlide}
+                className={controlClass}
+                title="Next (Right arrow or Space)"
+                aria-label="Next photo"
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </>
           )}
-          <button type="button" onClick={toggleFullscreen} className={controlClass} title="Full screen" aria-label="Full screen">
-            <Maximize2 className="w-[18px] h-[18px]" />
+
+          {/* Cinema / Clean Mode Toggle (Hides QR code & join chrome) */}
+          <button
+            type="button"
+            onClick={() => setIsCleanMode((prev) => !prev)}
+            className={`${controlClass} ${isCleanMode ? 'bg-[#E9EFEA] text-[#2D4A3A]' : ''}`}
+            title={isCleanMode ? 'Show QR Code & Join Info (Q)' : 'Cinema Mode: Photos only (Q)'}
+            aria-label={isCleanMode ? 'Show QR Code' : 'Cinema Mode'}
+          >
+            {isCleanMode ? (
+              <QrCode className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            ) : (
+              <Tv className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            )}
+          </button>
+
+          {/* Fullscreen Toggle */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className={controlClass}
+            title="Full screen (F)"
+            aria-label="Full screen"
+          >
+            <Maximize2 className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
           </button>
         </div>
       </div>

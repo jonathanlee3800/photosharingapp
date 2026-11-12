@@ -20,7 +20,7 @@ export default function SlideshowPage() {
     <div className="relative flex-none select-none flex flex-col md:flex-row md:items-stretch md:gap-10 w-full max-w-6xl mx-auto px-4 md:px-8 pt-3 md:pt-8 md:pb-8 h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-4.5rem-env(safe-area-inset-bottom))] md:h-[calc(100dvh-4rem)]">
       {/* The photo */}
       <div className="relative flex-1 min-h-0 min-w-0">
-        <SlideStage active={active} memories={publicMemories} rounded="rounded-[22px] md:rounded-[28px]" />
+        <SlideStage active={active} memories={publicMemories} showPeeks={false} rounded="rounded-[22px] md:rounded-[28px]" />
         {spotlightId && (
           <span className="absolute top-2 left-2 h-8 px-3 rounded-full bg-white/90 backdrop-blur-xl text-[13px] font-medium text-[#2D4A3A] flex items-center gap-1.5 shadow-sm">
             <Pin className="w-3 h-3" /> Pinned

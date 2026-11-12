@@ -88,6 +88,52 @@
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes kenBurns {
+  0% {
+    transform: scale(0.975);
+  }
+  100% {
+    transform: scale(1.025);
+  }
+}
+
+.animate-ken-burns {
+  animation: kenBurns 12s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes ambientPulse {
+  0%, 100% {
+    transform: scale(1.2);
+    opacity: 0.38;
+  }
+  50% {
+    transform: scale(1.26);
+    opacity: 0.48;
+  }
+}
+
+.animate-ambient-pulse {
+  animation: ambientPulse 9s ease-in-out infinite;
+}
+
 @keyframes riseUp {
   0% {
     transform: translateY(0) scale(0.85);
@@ -105,6 +151,28 @@
 
 .animate-rise {
   animation: riseUp 2.5s ease-out forwards;
+}
+
+/* Infinite Carousel Screen-Edge Fade Mask: dissolves flanking cards into the sides of the display */
+.carousel-edge-mask {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.25) 3%,
+    black 9%,
+    black 91%,
+    rgba(0, 0, 0, 0.25) 97%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(0, 0, 0, 0.25) 3%,
+    black 9%,
+    black 91%,
+    rgba(0, 0, 0, 0.25) 97%,
+    transparent 100%
+  );
 }
 
 /* Hide scrollbars when needed */
