@@ -38,20 +38,19 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl
 
-  // The site root belongs to hosts. Guests only arrive via an event link / QR code (/user/<eventId>).
+  // Legacy "/?code=XYZ" links: event ids, join codes and slugs all resolve under /user/<x>
   if (pathname === '/') {
-    const target = request.nextUrl.clone()
     const code = request.nextUrl.searchParams.get('code')
-    target.search = ''
     if (code) {
-      // Legacy "/?code=XYZ" links: event ids, join codes and slugs all resolve under /user/<x>
+      const target = request.nextUrl.clone()
+      target.search = ''
       target.pathname = `/user/${encodeURIComponent(code)}`
-    } else {
-      target.pathname = user ? '/host/events' : '/host/login'
+      const redirect = NextResponse.redirect(target)
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+      return redirect
     }
-    const redirect = NextResponse.redirect(target)
-    supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
-    return redirect
+    // Allow public landing page at '/' to render
+    return supabaseResponse
   }
 
   // Old guest pages without an event in the address (e.g. /user/join, /user/gallery, /gallery) would

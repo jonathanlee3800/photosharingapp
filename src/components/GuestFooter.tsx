@@ -19,6 +19,7 @@ export default function GuestFooter() {
 
   // Hosts already have host navigation; the host portal, projector, and join screens have their own chrome
   if (
+    pathname === '/' ||
     isHostLoggedIn ||
     pathname?.startsWith('/host') ||
     pathname === '/projector' ||

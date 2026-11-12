@@ -41,14 +41,21 @@ export default function Navbar() {
       ? `/user/${pathParts[1]}`
       : `/user/${currentEvent.id}`;
 
+  const isLandingPage = pathname === '/';
+
   // Event-specific guest items (event name, guest links, Share Moment, avatar) only belong on guest
   // pages. On host pages a visitor who is not signed in (e.g. /host/login) just sees the brand.
   const inGuestArea = Boolean(pathname?.startsWith("/user"));
   // Under the logo: hosts always see 'Host portal' (their event pages name the event), guests see their event
-  const brandSubtitle = !isGuest ? 'Host portal' : inGuestArea && hasRealEvent ? currentEvent.title : '';
+  const brandSubtitle = isLandingPage ? '' : !isGuest ? 'Host portal' : inGuestArea && hasRealEvent ? currentEvent.title : '';
 
   // Guest links only (desktop); on phones the bottom tab bar handles navigation
-  const navLinks = isGuest && inGuestArea
+  const navLinks = isLandingPage
+    ? [
+        { label: 'Features', href: '#features', isHash: true },
+        { label: 'How It Works', href: '#how-it-works', isHash: true },
+      ]
+    : isGuest && inGuestArea
     ? [
         { label: 'Gallery', href: `${base}/gallery`, matchSuffix: '/gallery', icon: ImageIcon },
         { label: 'Live Slideshow', href: `${base}/slideshow`, matchSuffix: '/slideshow', icon: Play },
@@ -72,7 +79,7 @@ export default function Navbar() {
           {/* Left: Brand & Active Event Title */}
           <div className="flex items-center gap-6 min-w-0">
             <Link
-              href={!isGuest ? '/host/events' : !inGuestArea ? '/host/login' : hasJoined ? `${base}/gallery` : base}
+              href={isLandingPage ? '/' : !isGuest ? '/host/events' : !inGuestArea ? '/host/login' : hasJoined ? `${base}/gallery` : base}
               className="flex items-center gap-2.5 min-w-0 press"
             >
               <span className="w-8 h-8 rounded-[10px] bg-[#2D4A3A] text-white flex items-center justify-center font-serif text-lg font-bold shrink-0">
@@ -94,8 +101,8 @@ export default function Navbar() {
             {/* Desktop Navigation Links */}
             <div className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => {
-                const Icon = link.icon;
-                const active = pathname === link.href || pathname?.endsWith(link.matchSuffix);
+                const Icon = 'icon' in link ? link.icon : null;
+                const active = pathname === link.href || (link.matchSuffix && pathname?.endsWith(link.matchSuffix));
                 return (
                   <Link
                     key={link.href}
@@ -104,7 +111,7 @@ export default function Navbar() {
                       active ? 'bg-[#2D4A3A] text-white shadow-sm' : 'text-[#1C2820]/75 hover:text-[#1C2820] hover:bg-black/5'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
+                    {Icon && <Icon className="w-4 h-4" />}
                     <span>{link.label}</span>
                   </Link>
                 );
@@ -114,6 +121,16 @@ export default function Navbar() {
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Landing Page Quick Access */}
+            {isLandingPage && !isHostLoggedIn && (
+              <Link
+                href="/host/login"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2D4A3A] hover:bg-[#233A2E] text-white text-xs font-semibold transition-all shadow-sm hover:shadow-md press"
+              >
+                <span>Host Sign In</span>
+              </Link>
+            )}
+
             {/* Upload Button (guests, desktop/tablet; phones use the tab bar camera) */}
             {isGuest && inGuestArea && (
               <Link
