@@ -7,7 +7,6 @@ import {
   Plus,
   QrCode,
   Calendar,
-  Check,
   ArrowRight,
   Trash2,
   Tag,
@@ -22,7 +21,7 @@ import { useConfirm } from '@/components/ConfirmDialog';
 
 export default function HostEventsPage() {
   const router = useRouter();
-  const { hostEvents: events, currentEvent, setCurrentEventId, deleteEvent } = useEvent();
+  const { hostEvents: events, setCurrentEventId, deleteEvent } = useEvent();
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Post counts per event: fetch only the event_id column (no media) instead of loading every post
@@ -102,18 +101,13 @@ export default function HostEventsPage() {
 
           {/* Event Cards */}
           {events.map((ev) => {
-            const isCurrent = ev.id === currentEvent.id;
             const eventMemoriesCount = postCounts[ev.id] || 0;
 
             return (
               <div
                 key={ev.id}
                 onClick={() => handleOpenEvent(ev)}
-                className={`bg-white rounded-3xl overflow-hidden border transition-all flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer group ${
-                  isCurrent
-                    ? 'border-[#2D4A3A] ring-2 ring-[#2D4A3A]/20'
-                    : 'border-[#1C2820]/10 hover:border-[#2D4A3A]/50'
-                }`}
+                className="bg-white rounded-3xl overflow-hidden border border-[#1C2820]/10 hover:border-[#2D4A3A]/50 transition-all flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer group"
               >
                 <div>
                   {/* Cover Header */}
@@ -131,13 +125,6 @@ export default function HostEventsPage() {
                         <span>PIN {formatPin(ev.code)}</span>
                       </span>
                     </div>
-
-                    {isCurrent && (
-                      <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-[#2D4A3A] text-white text-xs font-bold shadow-md flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Current</span>
-                      </div>
-                    )}
 
                     <div className="absolute bottom-3 left-4 right-4 text-white">
                       <h3 className="font-serif text-2xl font-bold leading-tight group-hover:text-[#FAF8F5] transition-colors">

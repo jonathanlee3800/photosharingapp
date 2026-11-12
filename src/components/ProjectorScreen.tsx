@@ -18,7 +18,7 @@ import { generateQrDataUrl } from '@/lib/qrHelper';
 import { formatPin } from '@/lib/pin';
 import SlideStage from '@/components/SlideStage';
 
-const CONTROLS_HIDE_MS = 3000;
+const CONTROLS_HIDE_MS = 1000;
 
 /**
  * Big Screen Projector:
