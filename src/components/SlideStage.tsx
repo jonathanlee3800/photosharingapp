@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Pin } from 'lucide-react';
 import { MemoryItem } from '@/lib/initialData';
 
 const CROSSFADE_MS = 900;
@@ -11,6 +12,10 @@ interface SlideCardProps {
   rounded: string;
   isHero?: boolean;
   isEntering?: boolean;
+  /** Side photos: faded with a solid veil (not transparency), so overlapping photos never show through each other */
+  veil?: 'near' | 'far';
+  /** Size from the height and keep this photo's own shape (for the photo fading out) */
+  keepShape?: boolean;
 }
 
 function SlideCard({
@@ -19,13 +24,15 @@ function SlideCard({
   rounded,
   isHero = false,
   isEntering = false,
+  veil,
+  keepShape = false,
 }: SlideCardProps) {
   // Standardized 2-format aspect ratio: 3:4 for vertical (portrait), 4:3 for horizontal (landscape).
   const aspectClass = isVertical ? 'aspect-[3/4]' : 'aspect-[4/3]';
 
   return (
     <div
-      className={`relative w-full h-full ${aspectClass} flex items-center justify-center overflow-hidden shrink-0 transition-all duration-700 ease-out ${rounded} ${
+      className={`relative ${keepShape ? 'h-full w-auto max-w-none' : 'w-full h-full'} ${aspectClass} flex items-center justify-center overflow-hidden shrink-0 transition-all duration-700 ease-out ${rounded} ${
         isHero
           ? 'shadow-[0_16px_50px_rgba(20,35,25,0.25)] sm:shadow-[0_36px_120px_rgba(20,35,25,0.40)] ring-1 ring-black/[0.08] bg-black/5'
           : 'shadow-[0_10px_30px_rgba(20,35,25,0.15)] sm:shadow-[0_16px_50px_rgba(20,35,25,0.22)] ring-1 ring-black/[0.06] bg-black/10'
@@ -49,6 +56,14 @@ function SlideCard({
           } ${rounded}`}
         />
       )}
+      {veil && (
+        <span
+          aria-hidden="true"
+          className={`absolute inset-0 pointer-events-none transition-colors duration-500 ${rounded} ${
+            veil === 'near' ? 'bg-[#FAF8F5]/40 group-hover:bg-[#FAF8F5]/5' : 'bg-[#FAF8F5]/65 group-hover:bg-[#FAF8F5]/25'
+          }`}
+        />
+      )}
     </div>
   );
 }
@@ -66,6 +81,7 @@ export default function SlideStage({
   memories,
   rounded = 'rounded-[20px] sm:rounded-[28px]',
   showPeeks = true,
+  pinned = false,
   onPrev,
   onNext,
 }: {
@@ -73,6 +89,8 @@ export default function SlideStage({
   memories: MemoryItem[];
   rounded?: string;
   showPeeks?: boolean;
+  /** The host has pinned this photo: shows a pin badge on it */
+  pinned?: boolean;
   onPrev?: () => void;
   onNext?: () => void;
 }) {
@@ -158,11 +176,12 @@ export default function SlideStage({
         {showPeeks && prevPrevMemory && (
           <div
             onClick={onPrev}
-            className="hidden lg:flex absolute right-full top-1/2 -translate-y-1/2 h-[74%] max-h-[74%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-0 -translate-x-[36%] xl:-translate-x-[44%] opacity-30 hover:opacity-75 scale-[0.82] hover:scale-[0.85] blur-[0.5px] hover:blur-none brightness-85 hover:brightness-100 select-none"
+            className="hidden lg:flex absolute right-full top-1/2 -translate-y-1/2 h-[74%] max-h-[74%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-0 -translate-x-[36%] xl:-translate-x-[44%] scale-[0.82] hover:scale-[0.85] blur-[0.5px] hover:blur-none brightness-85 hover:brightness-100 select-none group"
             title="Earlier photo (Left arrow)"
           >
             <SlideCard
               memory={prevPrevMemory}
+              veil="far"
               isVertical={orientationMap[prevPrevMemory.id] === 'vertical'}
               rounded={rounded}
               isHero={false}
@@ -174,11 +193,12 @@ export default function SlideStage({
         {showPeeks && prevMemory && (
           <div
             onClick={onPrev}
-            className="hidden sm:flex absolute right-full top-1/2 -translate-y-1/2 h-[86%] max-h-[86%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-10 translate-x-[26%] md:translate-x-[32%] lg:translate-x-[36%] opacity-60 hover:opacity-95 scale-[0.92] hover:scale-[0.94] brightness-95 hover:brightness-100 select-none group"
+            className="hidden sm:flex absolute right-full top-1/2 -translate-y-1/2 h-[86%] max-h-[86%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-10 translate-x-[26%] md:translate-x-[32%] lg:translate-x-[36%] scale-[0.92] hover:scale-[0.94] brightness-95 hover:brightness-100 select-none group"
             title="Previous photo (Left arrow)"
           >
             <SlideCard
               memory={prevMemory}
+              veil="near"
               isVertical={orientationMap[prevMemory.id] === 'vertical'}
               rounded={rounded}
               isHero={false}
@@ -188,13 +208,15 @@ export default function SlideStage({
 
         {/* 3. Center Hero Card (Layer 2: Outgoing Fading Out) */}
         {outgoing && outgoing.id !== active.id && (
-          <div className="absolute inset-0 flex items-center justify-center animate-[fadeOut_900ms_ease-out_both] pointer-events-none z-20">
+          // Keeps its own shape while fading, instead of being squeezed into the next photo's frame
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center justify-center animate-[fadeOut_900ms_ease-out_both] pointer-events-none z-20">
             <SlideCard
               memory={outgoing}
               isVertical={orientationMap[outgoing.id] === 'vertical'}
               rounded={rounded}
               isHero={true}
               isEntering={false}
+              keepShape
             />
           </div>
         )}
@@ -211,17 +233,28 @@ export default function SlideStage({
             isHero={true}
             isEntering={true}
           />
+          {pinned && (
+            <span
+              className="absolute top-[clamp(8px,1.8vmin,22px)] left-[clamp(8px,1.8vmin,22px)] z-30 inline-flex items-center gap-[clamp(4px,0.7vmin,9px)] h-[clamp(26px,4.2vmin,48px)] pl-[clamp(8px,1.2vmin,16px)] pr-[clamp(10px,1.6vmin,20px)] rounded-full bg-white/90 backdrop-blur-xl ring-1 ring-black/[0.06] shadow-[0_6px_20px_rgba(20,35,25,0.18)] text-[#2D4A3A] text-[clamp(12px,1.7vmin,20px)] font-semibold animate-fade-up"
+              role="status"
+              aria-label="Pinned by the hosts"
+            >
+              <Pin className="w-[1.1em] h-[1.1em] animate-pin-press" fill="currentColor" strokeWidth={2} />
+              Pinned
+            </span>
+          )}
         </div>
 
         {/* 5. Near Right Peek Card (Layer 1: Behind main hero, overlaps behind right edge) */}
         {showPeeks && nextMemory && (
           <div
             onClick={onNext}
-            className="hidden sm:flex absolute left-full top-1/2 -translate-y-1/2 h-[86%] max-h-[86%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-10 -translate-x-[26%] md:-translate-x-[32%] lg:-translate-x-[36%] opacity-60 hover:opacity-95 scale-[0.92] hover:scale-[0.94] brightness-95 hover:brightness-100 select-none group"
+            className="hidden sm:flex absolute left-full top-1/2 -translate-y-1/2 h-[86%] max-h-[86%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-10 -translate-x-[26%] md:-translate-x-[32%] lg:-translate-x-[36%] scale-[0.92] hover:scale-[0.94] brightness-95 hover:brightness-100 select-none group"
             title="Next photo (Right arrow)"
           >
             <SlideCard
               memory={nextMemory}
+              veil="near"
               isVertical={orientationMap[nextMemory.id] === 'vertical'}
               rounded={rounded}
               isHero={false}
@@ -233,11 +266,12 @@ export default function SlideStage({
         {showPeeks && nextNextMemory && (
           <div
             onClick={onNext}
-            className="hidden lg:flex absolute left-full top-1/2 -translate-y-1/2 h-[74%] max-h-[74%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-0 translate-x-[36%] xl:translate-x-[44%] opacity-30 hover:opacity-75 scale-[0.82] hover:scale-[0.85] blur-[0.5px] hover:blur-none brightness-85 hover:brightness-100 select-none"
+            className="hidden lg:flex absolute left-full top-1/2 -translate-y-1/2 h-[74%] max-h-[74%] items-center justify-center cursor-pointer transition-all duration-700 ease-out z-0 translate-x-[36%] xl:translate-x-[44%] scale-[0.82] hover:scale-[0.85] blur-[0.5px] hover:blur-none brightness-85 hover:brightness-100 select-none group"
             title="Upcoming photo (Right arrow)"
           >
             <SlideCard
               memory={nextNextMemory}
+              veil="far"
               isVertical={orientationMap[nextNextMemory.id] === 'vertical'}
               rounded={rounded}
               isHero={false}

@@ -48,14 +48,18 @@ export async function uploadMediaToR2(
 }
 
 /** Deletes R2 media for the given posts or a whole event (host only). */
-export async function deleteMediaFromR2(target: { postIds?: string[]; eventId?: string }) {
+/** Returns false if the files could not be deleted, so the caller can stop and tell the host */
+export async function deleteMediaFromR2(target: { postIds?: string[]; eventId?: string }): Promise<boolean> {
   try {
-    await fetch('/api/delete-media', {
+    const res = await fetch('/api/delete-media', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(target),
     });
+    if (!res.ok) console.warn('deleteMediaFromR2 failed:', res.status);
+    return res.ok;
   } catch (e) {
     console.warn('deleteMediaFromR2 error:', e);
+    return false;
   }
 }

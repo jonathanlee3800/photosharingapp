@@ -3,13 +3,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  Play,
-  Pause,
+  Pin,
   ChevronRight,
   ChevronLeft,
   Maximize2,
   X,
-  Pin,
   Tv,
   QrCode,
 } from 'lucide-react';
@@ -41,8 +39,7 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
     floatingEmojis,
     cycleNextSlide,
     cyclePrevSlide,
-    isSlideshowPlaying,
-    toggleSlideshowPlaying,
+    togglePinCurrent,
   } = useEvent();
 
   const canControl = isHostLoggedIn;
@@ -97,7 +94,7 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
         e.preventDefault();
         cyclePrevSlide();
       } else if (e.key === 'p' || e.key === 'P') {
-        if (canControl) toggleSlideshowPlaying();
+        if (canControl) togglePinCurrent();
       } else if (e.key === 'q' || e.key === 'Q' || e.key === 'c' || e.key === 'C') {
         setIsCleanMode((prev) => !prev);
       } else if (e.key === 'f' || e.key === 'F') {
@@ -106,7 +103,7 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [canControl, cycleNextSlide, cyclePrevSlide, toggleSlideshowPlaying]);
+  }, [canControl, cycleNextSlide, cyclePrevSlide, togglePinCurrent]);
 
   // Touch swipe support for mobile phones and touchscreens
   const touchStartX = useRef<number | null>(null);
@@ -188,10 +185,6 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
                 <span className="tabular-nums font-semibold">{roundTotalVotes}</span>
                 <span className="text-[#2D4A3A]/70">{roundTotalVotes === 1 ? 'vote' : 'votes'}</span>
               </span>
-            ) : spotlightId ? (
-              <span className="h-7.5 sm:h-8.5 px-2.5 sm:px-3 rounded-full bg-white/90 backdrop-blur-xl border border-white/60 shadow-sm flex items-center gap-1.5 text-[11px] sm:text-[13px] font-medium text-[#2D4A3A]">
-                <Pin className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Pinned
-              </span>
             ) : null}
           </div>
         </div>
@@ -218,6 +211,7 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
             active={active}
             memories={publicMemories}
             showPeeks={true}
+            pinned={Boolean(spotlightId) && active.id === spotlightId}
             onPrev={cyclePrevSlide}
             onNext={cycleNextSlide}
           />
@@ -328,16 +322,17 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
               </button>
               <button
                 type="button"
-                onClick={toggleSlideshowPlaying}
-                className={controlClass}
-                title={isSlideshowPlaying ? 'Pause (P)' : 'Play (P)'}
-                aria-label={isSlideshowPlaying ? 'Pause slideshow' : 'Play slideshow'}
+                onClick={togglePinCurrent}
+                className={`${controlClass} ${spotlightId ? '!bg-[#2D4A3A] !text-white' : ''}`}
+                title={spotlightId ? 'Unpin and continue the slideshow (P)' : 'Pin this photo on every screen (P)'}
+                aria-label={spotlightId ? 'Unpin photo' : 'Pin this photo'}
+                aria-pressed={Boolean(spotlightId)}
               >
-                {isSlideshowPlaying ? (
-                  <Pause className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-                ) : (
-                  <Play className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-                )}
+                <Pin
+                  key={spotlightId ? 'pinned' : 'unpinned'}
+                  className={`w-4 h-4 sm:w-[18px] sm:h-[18px] ${spotlightId ? 'animate-pin-press' : 'animate-pin-lift'}`}
+                  fill={spotlightId ? 'currentColor' : 'none'}
+                />
               </button>
               <button
                 type="button"

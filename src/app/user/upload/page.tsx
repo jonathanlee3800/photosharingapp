@@ -9,7 +9,7 @@ import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageP
 import PhotoFrame from '@/components/PhotoFrame';
 import PhotoCropDialog from '@/components/PhotoCropDialog';
 import { readVideoDuration } from '@/lib/videoDuration';
-import { compressVideo, maxPickableVideoBytes, MAX_VIDEO_BYTES } from '@/lib/videoCompressor';
+import { compressVideo, maxPickableVideoBytes, MAX_VIDEO_BYTES, VIDEO_MESSAGES, oversizeMessage } from '@/lib/videoCompressor';
 
 interface SelectedMediaFile {
   url: string;
@@ -60,7 +60,7 @@ export default function UploadPage() {
 
     if (isVideo) {
       if (file.size > maxPickableVideoBytes()) {
-        triggerToast('Video file is too large', 'Please choose a shorter clip');
+        triggerToast(...VIDEO_MESSAGES.tooLarge());
         return;
       }
 
@@ -72,12 +72,12 @@ export default function UploadPage() {
 
       // Shrink it to 720p on the phone first: faster upload, less data on the venue Wi-Fi
       setCompressProgress(0);
-      const { file: ready } = await compressVideo(file, setCompressProgress);
+      const { file: ready, compressed } = await compressVideo(file, setCompressProgress);
       setCompressProgress(null);
       if (ready.size > MAX_VIDEO_BYTES) {
         setSelectedFile(null);
         setIsProcessing(false);
-        triggerToast('Video is too long', 'Please choose a clip under about 45 seconds');
+        triggerToast(...oversizeMessage(compressed));
         return;
       }
 
@@ -90,7 +90,11 @@ export default function UploadPage() {
         }
         setIsProcessing(false);
       };
-      reader.onerror = () => setIsProcessing(false);
+      reader.onerror = () => {
+        setSelectedFile(null);
+        setIsProcessing(false);
+        triggerToast('Could not read that video', 'Please try selecting another one');
+      };
       reader.readAsDataURL(ready);
       return;
     }
@@ -117,6 +121,8 @@ export default function UploadPage() {
       setMediaType('photo');
     } catch (err: any) {
       console.warn('Image processing fallback:', err);
+      // Don't leave the unprocessed original selected: it may be too big to upload
+      setSelectedFile(null);
       triggerToast('Could not read that photo', 'Please try selecting another one');
     } finally {
       setIsProcessing(false);
@@ -135,7 +141,7 @@ export default function UploadPage() {
     setIsSubmitting(true);
 
     try {
-      await addMemory({
+      const posted = await addMemory({
         type: selectedFile.type,
         url: selectedFile.url,
         caption: caption.trim(),
@@ -144,7 +150,8 @@ export default function UploadPage() {
         duration: selectedFile.type === 'video' ? selectedFile.duration || undefined : undefined,
         guestName: finalAuthor,
       });
-      router.push(`/user/${currentEvent.id}/gallery`);
+      // On failure stay here with the photo and caption kept, so tapping Post again retries
+      if (posted) router.push(`/user/${currentEvent.id}/gallery`);
     } catch (err) {
       console.error('Error posting memory:', err);
       triggerToast('Could not post memory', 'Please check your connection and try again');

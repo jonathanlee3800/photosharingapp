@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Pin, Trophy } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import SlideStage from '@/components/SlideStage';
 
@@ -166,11 +166,6 @@ export default function SlideshowPage() {
 
         {/* Right: Spotlight or Voting Indicator */}
         <div className="flex items-center gap-2">
-          {spotlightId && (
-            <span className="h-7 sm:h-8 px-2.5 sm:px-3 rounded-full bg-white/90 backdrop-blur-xl text-[11px] sm:text-[12px] font-semibold text-[#2D4A3A] flex items-center gap-1.5 shadow-xs border border-white/60">
-              <Pin className="w-3 h-3" /> Pinned
-            </span>
-          )}
           {votingRound.isActive && (
             <span className="h-7 sm:h-8 px-2.5 sm:px-3 rounded-full bg-white/90 backdrop-blur-xl border border-white/60 shadow-xs flex items-center gap-1.5 text-[11px] sm:text-[12px] font-semibold text-[#2D4A3A]">
               <Trophy className="w-3 h-3" /> Contest open
@@ -186,6 +181,7 @@ export default function SlideshowPage() {
             active={active}
             memories={publicMemories}
             showPeeks={true}
+            pinned={Boolean(spotlightId) && active.id === spotlightId}
             onPrev={handlePrev}
             onNext={handleNext}
           />

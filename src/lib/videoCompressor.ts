@@ -19,6 +19,24 @@ export function maxPickableVideoBytes(): number {
   return canCompressVideo() ? 300 * 1024 * 1024 : MAX_VIDEO_BYTES;
 }
 
+/** The same wording for guests and hosts. count > 1 when several videos in one batch hit the limit. */
+export const VIDEO_MESSAGES = {
+  tooLarge: (count = 1) =>
+    [count > 1 ? `${count} video files are too large` : 'Video file is too large', 'Please choose a shorter clip'] as const,
+  tooLong: (count = 1) =>
+    [count > 1 ? `${count} videos are too long` : 'Video is too long', 'Please choose a clip under about 45 seconds'] as const,
+  // The browser couldn't shrink it, and the original is over the storage limit
+  couldNotShrink: (count = 1) =>
+    [
+      count > 1 ? `${count} videos couldn’t be shrunk` : 'Video couldn’t be shrunk',
+      'It’s over 15 MB. Please choose a shorter clip',
+    ] as const,
+};
+
+/** The right message for a video that is still over the limit after compressVideo */
+export const oversizeMessage = (compressed: boolean, count = 1): readonly [string, string] =>
+  compressed ? VIDEO_MESSAGES.tooLong(count) : VIDEO_MESSAGES.couldNotShrink(count);
+
 export type CompressResult = { file: File; compressed: boolean };
 
 export function canCompressVideo(): boolean {

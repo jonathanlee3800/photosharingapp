@@ -6,7 +6,7 @@ import { useEvent } from '@/context/EventContext';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
 import PhotoCropDialog from '@/components/PhotoCropDialog';
 import { readVideoDuration } from '@/lib/videoDuration';
-import { compressVideo, maxPickableVideoBytes, MAX_VIDEO_BYTES } from '@/lib/videoCompressor';
+import { compressVideo, maxPickableVideoBytes, MAX_VIDEO_BYTES, VIDEO_MESSAGES, oversizeMessage } from '@/lib/videoCompressor';
 
 
 interface PickedFile {
@@ -16,6 +16,8 @@ interface PickedFile {
   isVideo: boolean;
   converting: boolean;
   processedUrl?: string; // The converted photo, reused at upload so it isn't converted twice
+  shrinkProgress: number | null; // 0-1 while a video is being shrunk, null otherwise
+  ready?: File; // The shrunk video, reused at upload
 }
 
 const PHOTO_OPTIONS = { maxDimension: 2000, quality: 0.88 };
@@ -69,12 +71,17 @@ export default function HostUploadDialog({
   if (!open) return null;
 
   const addFiles = (files: File[]) => {
-    let skipped = 0;
+    let notMedia = 0;
+    let tooLarge = 0;
     const next: PickedFile[] = [];
     for (const file of files) {
       const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
-      if (isVideo ? file.size > maxPickableVideoBytes() : !isValidImageFile(file)) {
-        skipped++;
+      if (isVideo && file.size > maxPickableVideoBytes()) {
+        tooLarge++;
+        continue;
+      }
+      if (!isVideo && !isValidImageFile(file)) {
+        notMedia++;
         continue;
       }
       const needsConversion = !isVideo && isHeicFile(file);
@@ -84,12 +91,15 @@ export default function HostUploadDialog({
         isVideo,
         previewUrl: needsConversion ? null : URL.createObjectURL(file),
         converting: needsConversion,
+        shrinkProgress: isVideo ? 0 : null,
       });
     }
     setPicked((prev) => [...prev, ...next]);
     next.filter((p) => p.converting).forEach(convertForPreview);
-    if (skipped > 0) {
-      triggerToast(`${skipped} ${skipped === 1 ? 'file' : 'files'} skipped`, 'Only photos and short videos can be uploaded');
+    next.filter((p) => p.isVideo).forEach(shrinkVideo);
+    if (tooLarge > 0) triggerToast(...VIDEO_MESSAGES.tooLarge(tooLarge));
+    if (notMedia > 0) {
+      triggerToast(`${notMedia} ${notMedia === 1 ? 'file' : 'files'} skipped`, 'Only photos and videos can be uploaded');
     }
   };
 
@@ -113,6 +123,31 @@ export default function HostUploadDialog({
     });
   };
 
+  // Same as the guest page: shrink each video as soon as it's picked, showing progress on its tile.
+  // A video still too long afterwards is taken out with the same message guests get.
+  const shrinkVideo = (item: PickedFile) => {
+    const update = (changes: Partial<PickedFile>) =>
+      setPicked((prev) => prev.map((p) => (p.id === item.id ? { ...p, ...changes } : p)));
+    conversionQueueRef.current = conversionQueueRef.current.then(async () => {
+      if (!pickedRef.current.some((p) => p.id === item.id)) return; // Removed while waiting
+      let shown = 0;
+      const { file: ready, compressed } = await compressVideo(item.file, (fraction) => {
+        const pct = Math.round(fraction * 100);
+        if (pct !== shown) {
+          shown = pct;
+          update({ shrinkProgress: fraction });
+        }
+      });
+      if (ready.size > MAX_VIDEO_BYTES) {
+        revokePreview(item);
+        setPicked((prev) => prev.filter((p) => p.id !== item.id));
+        triggerToast(...oversizeMessage(compressed));
+        return;
+      }
+      update({ ready, shrinkProgress: null });
+    });
+  };
+
   const readAsDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -126,16 +161,18 @@ export default function HostUploadDialog({
     setUploading(true);
     const entries: Parameters<typeof addMultipleMemories>[0] = [];
     let failed = 0;
+    let tooLong = 0;
     for (let i = 0; i < picked.length; i++) {
-      const { file, isVideo, processedUrl } = picked[i];
+      const { file, isVideo, processedUrl, ready: shrunk } = picked[i];
       setStatus(`Preparing ${i + 1} of ${picked.length}…`);
       try {
         let ready = file;
         if (isVideo) {
-          ready = (
-            await compressVideo(file, (p) => setStatus(`Shrinking video ${i + 1} of ${picked.length}… ${Math.round(p * 100)}%`))
-          ).file;
-          if (ready.size > MAX_VIDEO_BYTES) throw new Error('Video too long after compression');
+          ready = shrunk ?? (await compressVideo(file)).file;
+          if (ready.size > MAX_VIDEO_BYTES) {
+            tooLong++;
+            continue;
+          }
         }
         const url = isVideo
           ? await readAsDataUrl(ready)
@@ -159,12 +196,14 @@ export default function HostUploadDialog({
       setStatus(`Uploading ${entries.length}…`);
       await addMultipleMemories(entries);
     }
+    if (tooLong > 0) triggerToast(...VIDEO_MESSAGES.tooLong(tooLong));
     if (failed > 0) triggerToast(`${failed} ${failed === 1 ? 'file' : 'files'} couldn't be read`, 'Please try those again');
     setUploading(false);
     onClose();
   };
 
   const count = picked.length;
+  const preparing = picked.some((p) => p.shrinkProgress !== null);
   const cropping = picked.find((p) => p.id === croppingId);
 
   return (
@@ -257,6 +296,14 @@ export default function HostUploadDialog({
                       <div className="w-full h-full flex flex-col items-center justify-center text-[#1C2820]/50 text-[10px] font-semibold gap-1 p-1 text-center">
                         {p.converting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
                         {p.converting ? 'Loading' : 'HEIC'}
+                      </div>
+                    )}
+                    {p.shrinkProgress !== null && (
+                      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm flex flex-col items-center justify-center gap-1 text-white text-center p-1">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span className="text-[10px] font-semibold leading-tight">
+                          Shrinking… {Math.round(p.shrinkProgress * 100)}%
+                        </span>
                       </div>
                     )}
                     {!p.isVideo && p.previewUrl && (
@@ -374,11 +421,11 @@ export default function HostUploadDialog({
           <button
             type="button"
             onClick={upload}
-            disabled={count === 0 || uploading || !promptId}
+            disabled={count === 0 || uploading || preparing || !promptId}
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#2D4A3A] to-[#1F3628] text-white text-xs font-bold flex items-center gap-2 shadow-sm disabled:opacity-50"
           >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? status : count > 0 ? `Upload ${count} ${count === 1 ? 'file' : 'files'}` : 'Upload'}
+            {uploading || preparing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? status : preparing ? 'Preparing…' : count > 0 ? `Upload ${count} ${count === 1 ? 'file' : 'files'}` : 'Upload'}
           </button>
         </div>
       </div>

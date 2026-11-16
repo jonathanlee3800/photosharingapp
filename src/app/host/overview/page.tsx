@@ -873,12 +873,12 @@ export default function HostOverviewPage() {
                     <Sparkles className="w-5 h-5 text-[#2D4A3A] shrink-0" />
                   </div>
                   <p className="text-xs text-[#1C2820]/60 font-medium mt-1 leading-relaxed">
-                    Feature a special moment on the big screen. Locking a photo pauses the rolling slideshow and pins it across all projector feeds.
+                    Feature a special moment on the big screen. Pinning a photo holds it on every screen (projector and guest slideshows) until you unpin it.
                   </p>
                 </div>
                 {spotlightId ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#2D4A3A] text-white text-[10px] font-bold uppercase tracking-wider shrink-0 mt-0.5">
+                    <Pin className="w-3 h-3 animate-pin-press" fill="currentColor" />
                     Pinned
                   </span>
                 ) : (
@@ -899,8 +899,8 @@ export default function HostOverviewPage() {
                   className="w-full h-full object-cover"
                 />
                 {spotlightId && (
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-white text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
-                    <Pin className="w-2.5 h-2.5 text-amber-300" /> Pinned
+                  <span className="absolute top-1.5 left-1.5 h-5 px-1.5 rounded-full bg-white/90 backdrop-blur-md ring-1 ring-black/[0.06] shadow-sm text-[#2D4A3A] text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Pin className="w-2.5 h-2.5 animate-pin-press" fill="currentColor" /> Pinned
                   </span>
                 )}
               </div>
@@ -942,19 +942,19 @@ export default function HostOverviewPage() {
                   onClick={() => (spotlightId ? resumeSlideshow() : toggleSpotlight(activeSlideMemory.id))}
                   className={`h-[46px] flex-1 px-4 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-40 ${
                     spotlightId
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      ? 'bg-[#E9EFEA] hover:bg-[#DCE6DF] text-[#2D4A3A]'
                       : 'bg-[#2D4A3A] hover:bg-[#1F3628] text-white'
                   }`}
                 >
                   {spotlightId ? (
                     <>
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Resume Slideshow</span>
+                      <Pin key="pinned" className="w-3.5 h-3.5 animate-pin-press" fill="currentColor" />
+                      <span>Unpin and continue</span>
                     </>
                   ) : (
                     <>
-                      <Pin className="w-3.5 h-3.5" />
-                      <span>Lock on Screen</span>
+                      <Pin key="unpinned" className="w-3.5 h-3.5 rotate-45" />
+                      <span>Pin on screen</span>
                     </>
                   )}
                 </button>

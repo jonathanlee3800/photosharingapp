@@ -218,11 +218,11 @@ function HostPhotosContent() {
               )}
               <div className="min-w-0">
                 <div className="text-xs font-bold text-[#2D4A3A] flex items-center gap-1.5">
-                  <Pin className="w-3.5 h-3.5" fill="currentColor" />
+                  <Pin className="w-3.5 h-3.5 animate-pin-press" fill="currentColor" />
                   <span>Pinned on all live screens</span>
                 </div>
                 <div className="text-xs text-[#1C2820]/70 font-medium truncate">
-                  {pinned ? `${pinned.caption ? `“${pinned.caption}” · ` : ''}${pinned.guestName}` : 'The slideshow is paused on this photo.'}
+                  {pinned ? `${pinned.caption ? `“${pinned.caption}” · ` : ''}${pinned.guestName}` : 'This photo is pinned on every screen.'}
                 </div>
               </div>
             </div>
@@ -596,7 +596,7 @@ function HostPhotosContent() {
                   {item.isPrivate ? (
                     <Lock className="w-3 h-3 text-amber-300" />
                   ) : isSpotlighted ? (
-                    <Pin className="w-3 h-3 text-amber-300" fill="currentColor" />
+                    <Pin className="w-3 h-3 text-white animate-pin-press" fill="currentColor" />
                   ) : (
                     <div className="w-1.5 h-1.5 rounded-full bg-[#2D4A3A]"></div>
                   )}
@@ -663,13 +663,18 @@ function HostPhotosContent() {
                     <button
                       type="button"
                       onClick={() => toggleSpotlight(item.id)}
-                      className={`p-1.5 rounded-lg hover:bg-black/5 transition-colors ${
-                        isSpotlighted ? 'text-[#2D4A3A]' : 'text-[#1C2820]/60'
+                      aria-pressed={isSpotlighted}
+                      className={`p-1.5 rounded-lg transition-colors ${
+                        isSpotlighted ? 'bg-[#2D4A3A] text-white' : 'text-[#1C2820]/60 hover:bg-black/5'
                       }`}
                       title={isSpotlighted ? 'Unpin from live screens' : 'Pin to live screens'}
                       aria-label={isSpotlighted ? 'Unpin from live screens' : 'Pin to live screens'}
                     >
-                      <Pin className="w-4 h-4" fill={isSpotlighted ? "currentColor" : "none"} />
+                      <Pin
+                        key={isSpotlighted ? 'pinned' : 'unpinned'}
+                        className={`w-4 h-4 ${isSpotlighted ? 'animate-pin-press' : 'rotate-45'}`}
+                        fill={isSpotlighted ? 'currentColor' : 'none'}
+                      />
                     </button>
                   )}
 

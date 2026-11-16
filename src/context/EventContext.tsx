@@ -30,11 +30,21 @@ export interface FloatingEmoji {
   left: number;
 }
 
+export type ToastKind = 'success' | 'error' | 'info';
+
 export interface ToastMessage {
   id: number;
   title: string;
-  subtitle: string;
+  subtitle?: string;
+  kind: ToastKind;
 }
+
+// Most messages say what they are; work it out so every call site doesn't have to
+const ERROR_TITLE = /^(could|couldn|cannot|upload failed|vote not saved|please select a valid|passcode not recognized|configuration required|video (file )?(is )?too|video couldn|\d+ (video|file)s? .*(skipped|couldn|too (large|long)|failed))|failed$|couldn’t be|weren’t saved/i;
+// Guidance rather than a failure ("…first", "…yet", "Vote moved")
+const INFO_TITLE = /^(downloading|packaging|converting|vote moved)|first$|yet$/i;
+const toastKindFor = (title: string): ToastKind =>
+  ERROR_TITLE.test(title) ? 'error' : INFO_TITLE.test(title) ? 'info' : 'success';
 
 export interface VotingRound {
   // True only while the host has a round open and its timer (if any) has not run out
@@ -115,7 +125,7 @@ interface EventContextType {
     isPrivate?: boolean;
     duration?: string;
     guestName?: string;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   addMultipleMemories: (entries: Array<{
     type: 'photo' | 'video';
     url: string;
@@ -137,8 +147,8 @@ interface EventContextType {
   spotlightId: string | null;
   setSpotlightId: (id: string | null) => void;
   currentSlideIdx: number;
-  isSlideshowPlaying: boolean;
-  toggleSlideshowPlaying: () => void;
+  /** Pins the photo on screen, or unpins and carries on (the one way to hold the slideshow) */
+  togglePinCurrent: () => void;
   activeSlideMemory: MemoryItem;
   cycleNextSlide: () => void;
   cyclePrevSlide: () => void;
@@ -155,7 +165,8 @@ interface EventContextType {
 
   // Toasts
   toast: ToastMessage | null;
-  triggerToast: (title: string, subtitle?: string) => void;
+  dismissToast: () => void;
+  triggerToast: (title: string, subtitle?: string, kind?: ToastKind) => void;
 
   // Downloads & Export
   isZipModalOpen: boolean;
@@ -296,6 +307,15 @@ const findLocalEvent = (query: string, eventList: EventItem[]): EventItem | unde
   );
 };
 
+// What to tell a host when a change didn't save. Database wording is never shown.
+const hostErrorHint = (e?: { message?: string; code?: string } | null): string => {
+  const text = `${e?.message || ''} ${e?.code || ''}`.toLowerCase();
+  if (/row-level security|jwt|not signed in|permission|42501|pgrst301/.test(text)) {
+    return 'You may have been signed out. Please refresh and log in again';
+  }
+  return 'Please check your connection and try again';
+};
+
 export function EventProvider({ children }: { children: ReactNode }) {
   // Host Auth State
   const [hostUser, setHostUser] = useState<HostUser | null>(null);
@@ -345,9 +365,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [isZipModalOpen, setIsZipModalOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const triggerToast = useCallback((title: string, subtitle = 'Synced across all active screens') => {
-    setToast({ title, subtitle, id: Date.now() });
+  const triggerToast = useCallback((title: string, subtitle?: string, kind?: ToastKind) => {
+    setToast({ title, subtitle, kind: kind || toastKindFor(title), id: Date.now() });
   }, []);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   // A host loads only their own events
   const fetchHostEvents = useCallback(async (ownerId: string) => {
@@ -359,6 +380,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         .eq('owner_id', ownerId);
       if (error) {
         console.warn('Error fetching events from Supabase:', error);
+        triggerToast('Couldn’t load your events', 'Please check your connection and refresh');
         return;
       }
       const mapped: EventItem[] = (data || []).map(mapDbEvent);
@@ -372,10 +394,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
       ]);
     } catch (err) {
       console.warn('Error fetching events from Supabase:', err);
+      triggerToast('Couldn’t load your events', 'Please check your connection and refresh');
     } finally {
       setEventsLoaded(true);
     }
-  }, []);
+  }, [triggerToast]);
 
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const bestClockSampleMsRef = useRef(Infinity);
@@ -708,7 +731,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
   // Toast auto-dismiss
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3500);
+    // Errors stay long enough to read and act on
+    const t = setTimeout(() => setToast(null), toast.kind === 'error' ? 6000 : 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -974,9 +998,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     votingRound.isActive && !memory.isPrivate && memory.promptId === votingRound.promptId;
 
   // Shared slideshow: every screen works out the same position from the server's clock, so a playing
-  // slideshow stays in step with no messages. Only the host's skip and pause change the event.
-  const slideshowPaused = Boolean(currentEvent.slideshowPaused);
-  const isSlideshowPlaying = !slideshowPaused;
+  // slideshow stays in step with no messages. Only the host's skip changes the event.
+  // There is no separate pause: holding a photo is done by pinning it, so guests see one clear
+  // "Pinned" state. Any old saved pause is ignored and the slideshow carries on.
+  const slideshowPaused = false;
   const slideAnchorIndex = currentEvent.slideshowAnchorIndex || 0;
   const slideAnchorMs = currentEvent.slideshowAnchorAt ? new Date(currentEvent.slideshowAnchorAt).getTime() : 0;
   const computeSlidePosition = useCallback(
@@ -1003,29 +1028,31 @@ export function EventProvider({ children }: { children: ReactNode }) {
     scheduleNext();
     return () => clearTimeout(timer);
   }, [computeSlidePosition, slideshowPaused, slideCount, clockOffsetMs, slideAnchorMs]);
-  const currentSlideIdx = slideCount > 0 ? ((slidePosition % slideCount) + slideCount) % slideCount : 0;
+  // Worked out fresh on every render (the timer above only triggers the re-render), so a skip or
+  // unpin shows the new photo straight away, never one frame of the old position first
+  const livePosition = slideCount > 0 ? computeSlidePosition() : slidePosition;
+  const currentSlideIdx = slideCount > 0 ? ((livePosition % slideCount) + slideCount) % slideCount : 0;
 
   // Host only: save a new position (the database's rules refuse anyone else, and it reaches every screen)
-  const saveSlideshow = (position: number, paused: boolean) => {
+  const saveSlideshow = (position: number, paused: boolean): PromiseLike<void> => {
     const anchorAt = new Date(Date.now() + clockOffsetMs).toISOString();
     const anchorIndex = slideCount > 0 ? ((position % slideCount) + slideCount) % slideCount : 0;
     const patch = { slideshowAnchorAt: anchorAt, slideshowAnchorIndex: anchorIndex, slideshowPaused: paused };
     setEvents((prev) => prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, ...patch } : ev)));
-    if (!isSupabaseConfigured() || !isUuid(currentEvent.id)) return;
-    supabase
+    if (!isSupabaseConfigured() || !isUuid(currentEvent.id)) return Promise.resolve();
+    return supabase
       .from('events')
       .update({ slideshow_anchor_at: anchorAt, slideshow_anchor_index: anchorIndex, slideshow_paused: paused })
       .eq('id', currentEvent.id)
       .then(({ error }) => {
         if (error) {
           console.warn('Slideshow update error:', error);
-          triggerToast('Could not update the slideshow', error.message);
+          triggerToast('Could not update the slideshow', hostErrorHint(error));
           if (hostUser) fetchHostEvents(hostUser.id);
         }
       });
   };
 
-  const toggleSlideshowPlaying = () => saveSlideshow(computeSlidePosition(), isSlideshowPlaying);
 
   const activeSlideMemory =
     eventMemories.find((m) => m.id === spotlightId && !m.isPrivate) ||
@@ -1224,7 +1251,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         if (insertError || !dbEvent) {
           console.warn('Supabase event insert failed:', insertError);
-          triggerToast('Could not create the event', insertError?.message || 'Please try again');
+          triggerToast('Could not create the event', hostErrorHint(insertError));
           throw new Error(insertError?.message || 'Event insert failed');
         }
 
@@ -1254,7 +1281,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
               }))
             )
             .select();
-          if (promptsError) console.warn('Supabase prompts insert failed:', promptsError);
+          if (promptsError) {
+            console.warn('Supabase prompts insert failed:', promptsError);
+            triggerToast('Event created, but its photo tags weren’t saved', 'Add them again from the event overview');
+          }
           if (savedPrompts && savedPrompts.length > 0) {
             defaultPromptsList = savedPrompts.map((p: any) => ({ id: p.id, label: p.label, icon: p.icon || '🌿' }));
           }
@@ -1286,10 +1316,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
   };
 
   const updateEvent = async (id: string, updates: Partial<EventItem>) => {
+    const before = events.find((e) => e.id === id);
     setEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
     );
     triggerToast('Event details updated');
+    const undo = (reason?: string) => {
+      if (before) setEvents((prev) => prev.map((e) => (e.id === id ? before : e)));
+      triggerToast('Couldn’t save event details', reason || 'Please check your connection and try again');
+    };
 
     if (isSupabaseConfigured() && isUuid(id)) {
       try {
@@ -1303,9 +1338,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
             : updates.coverUrl;
         }
         if (updates.votingPromptId) payload.voting_prompt_id = updates.votingPromptId;
-        await supabase.from('events').update(payload).eq('id', id);
-      } catch (e) {
+        const { data: saved, error } = await supabase.from('events').update(payload).eq('id', id).select('id');
+        if (error || !saved?.length) {
+          console.warn('updateEvent error:', error || 'no row changed');
+          undo(hostErrorHint(error));
+        }
+      } catch (e: any) {
         console.warn('updateEvent error:', e);
+        undo(hostErrorHint(e));
       }
     }
   };
@@ -1315,19 +1355,32 @@ export function EventProvider({ children }: { children: ReactNode }) {
       triggerToast('Cannot delete the only event');
       return;
     }
+    const snapshot = events;
+    const previousCurrent = currentEventId;
     const remaining = events.filter((e) => e.id !== id);
     setEvents(remaining);
     if (currentEventId === id) {
       setCurrentEventIdState(remaining[0].id);
     }
     triggerToast('Event deleted');
+    const undo = (reason?: string) => {
+      setEvents(snapshot);
+      setCurrentEventIdState(previousCurrent);
+      triggerToast('Couldn’t delete the event', reason || 'Please check your connection and try again');
+    };
 
     if (isSupabaseConfigured() && isUuid(id)) {
       try {
-        await deleteMediaFromR2({ eventId: id });
-        await supabase.from('events').delete().eq('id', id);
-      } catch (e) {
+        // Files first; if they can't be removed, keep the event so nothing is left behind
+        if (!(await deleteMediaFromR2({ eventId: id }))) return undo();
+        const { data: gone, error } = await supabase.from('events').delete().eq('id', id).select('id');
+        if (error || !gone?.length) {
+          console.warn('deleteEvent error:', error || 'no row deleted');
+          undo(hostErrorHint(error));
+        }
+      } catch (e: any) {
         console.warn('deleteEvent error:', e);
+        undo(hostErrorHint(e));
       }
     }
   };
@@ -1354,17 +1407,29 @@ export function EventProvider({ children }: { children: ReactNode }) {
     triggerToast(`Added tag: "${label}"`, 'Immediately selectable by guests');
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
+      const eventId = currentEvent.id;
+      const undo = (reason?: string) => {
+        setEvents((prev) =>
+          prev.map((ev) => (ev.id === eventId ? { ...ev, prompts: (ev.prompts || []).filter((p) => p.id !== promptId) } : ev))
+        );
+        triggerToast(`Couldn’t add tag "${label.trim()}"`, reason || 'Please check your connection and try again');
+      };
       try {
-        await supabase.from('prompts').insert([
+        const { error } = await supabase.from('prompts').insert([
           {
             id: promptId,
-            event_id: currentEvent.id,
+            event_id: eventId,
             label: label.trim(),
             icon,
           },
         ]);
-      } catch (e) {
+        if (error) {
+          console.warn('addPrompt db error:', error);
+          undo(hostErrorHint(error));
+        }
+      } catch (e: any) {
         console.warn('addPrompt db error:', e);
+        undo(hostErrorHint(e));
       }
     }
   };
@@ -1384,17 +1449,20 @@ export function EventProvider({ children }: { children: ReactNode }) {
         .eq('event_id', currentEvent.id)
         .eq('category_tag', promptId);
       if (findError) {
-        triggerToast('Could not delete tag', findError.message);
+        triggerToast('Could not delete tag', hostErrorHint(findError));
         return;
       }
       const postIds = (rows || []).map((r: { id: string }) => r.id);
 
       if (postIds.length > 0) {
         // Files first: the R2 route checks ownership against the rows, so they must still exist
-        await deleteMediaFromR2({ postIds });
+        if (!(await deleteMediaFromR2({ postIds }))) {
+          triggerToast('Couldn’t delete the tag’s photos', 'Please check your connection and try again');
+          return;
+        }
         const { error: deleteError } = await supabase.from('posts').delete().in('id', postIds);
         if (deleteError) {
-          triggerToast('Could not delete the tag’s photos', deleteError.message);
+          triggerToast('Could not delete the tag’s photos', hostErrorHint(deleteError));
           return;
         }
       }
@@ -1428,7 +1496,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     if (isSupabaseConfigured() && isUuid(promptId)) {
       const { error } = await supabase.from('prompts').delete().eq('id', promptId);
-      if (error) console.warn('deletePrompt db error:', error);
+      if (error) {
+        console.warn('deletePrompt db error:', error);
+        triggerToast('Photos deleted, but the tag couldn’t be removed', 'Refresh and try deleting the tag again');
+      }
     }
   };
 
@@ -1459,7 +1530,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         .eq('id', currentEvent.id);
       if (error) {
         console.warn('startVotingRound error:', error);
-        triggerToast('Could not start the contest', error.message);
+        triggerToast('Could not start the contest', hostErrorHint(error));
         if (hostUser) fetchHostEvents(hostUser.id);
       }
     }
@@ -1491,7 +1562,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         .eq('id', currentEvent.id);
       if (error) {
         console.warn('closeVotingRound error:', error);
-        triggerToast('Could not close the contest', error.message);
+        triggerToast('Could not close the contest', hostErrorHint(error));
         if (hostUser) fetchHostEvents(hostUser.id);
       }
     }
@@ -1617,7 +1688,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     isPrivate?: boolean;
     duration?: string;
     guestName?: string;
-  }) => {
+  }): Promise<boolean> => {
+    // Guests aren't signed in, so never suggest logging in to them
+    const failHint = (e?: { message?: string; code?: string } | null) =>
+      hostUser ? hostErrorHint(e) : 'Please check your connection and try again';
     const finalAuthor = newEntry.guestName?.trim() || guestName || 'Wedding Guest';
     // Hosts posting from a guest page keep their host role; only guests update their saved name
     if (!hostUser && newEntry.guestName?.trim() && newEntry.guestName.trim() !== guestName) {
@@ -1664,8 +1738,8 @@ export function EventProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       console.error('Media upload error:', err);
       setMemories((prev) => prev.filter((m) => m.id !== memoryUuid));
-      triggerToast('Upload failed', err?.message || 'Please check your connection and try again');
-      return;
+      triggerToast('Upload failed', failHint(err));
+      return false;
     }
     if (stored.url !== newEntry.url) {
       setMemories((prev) => prev.map((m) => (m.id === memoryUuid ? { ...m, url: stored.url } : m)));
@@ -1693,17 +1767,21 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
         if (dbError) {
           console.error('Supabase posts insert error:', dbError);
-          triggerToast('Database sync notice', dbError.message);
-          return;
+          setMemories((prev) => prev.filter((m) => m.id !== memoryUuid));
+          triggerToast('Upload failed', failHint(dbError));
+          return false;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('addMemory Supabase error:', err);
-        return;
+        setMemories((prev) => prev.filter((m) => m.id !== memoryUuid));
+        triggerToast('Upload failed', failHint(err));
+        return false;
       }
     }
 
     // Only now is the photo really there for the projector to celebrate
     if (!created.isPrivate) sendReaction('✨');
+    return true;
   };
 
   const addMultipleMemories = async (entries: Array<{
@@ -1799,11 +1877,14 @@ export function EventProvider({ children }: { children: ReactNode }) {
         );
         if (dbError) {
           console.error('Supabase posts insert error:', dbError);
-          triggerToast('Database sync notice', dbError.message);
+          setMemories((prev) => prev.filter((m) => !uploadedList.some((c) => c.id === m.id)));
+          triggerToast('Upload failed', hostErrorHint(dbError));
           return;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('addMultipleMemories Supabase error:', err);
+        setMemories((prev) => prev.filter((m) => !uploadedList.some((c) => c.id === m.id)));
+        triggerToast('Upload failed', hostErrorHint(err));
         return;
       }
     }
@@ -1869,7 +1950,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     if (error || !data) {
       console.warn('toggleVote error:', error);
       setMemories(snapshot);
-      triggerToast('Vote not saved', error?.message || 'Please check your connection and try again');
+      triggerToast('Vote not saved', hostErrorHint(error));
       return;
     }
     setMemories((prev) => prev.map((m) => (m.id === memoryId ? { ...m, votedByMe: Boolean(data.voted) } : m)));
@@ -1889,7 +1970,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const nextSpotlight = spotlightId === memoryId ? null : memoryId;
+    // Unpinning carries on from the pinned photo, the same as the projector's pin button
+    if (spotlightId === memoryId) {
+      await unpinAt();
+      return;
+    }
+    const previousSpotlight = spotlightId;
+    const nextSpotlight = memoryId;
     setSpotlightId(nextSpotlight);
 
     if (nextSpotlight) {
@@ -1903,53 +1990,76 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
+        let failed: { message?: string } | null = null;
         if (isUuid(currentEvent.id)) {
           // Only clear the currently spotlighted post so we don't rewrite (and broadcast) every row
-          await supabase
+          const { error } = await supabase
             .from('posts')
             .update({ is_spotlight: false })
             .eq('event_id', currentEvent.id)
             .eq('is_spotlight', true);
+          failed = error;
         }
-        if (nextSpotlight) {
-          await supabase.from('posts').update({ is_spotlight: true }).eq('id', memoryId);
+        if (!failed && nextSpotlight) {
+          const { data: pinned, error } = await supabase.from('posts').update({ is_spotlight: true }).eq('id', memoryId).select('id');
+          failed = error || (!pinned?.length ? {} : null);
         }
-      } catch (e) {
+        if (failed) throw failed;
+      } catch (e: any) {
         console.warn('toggleSpotlight db error:', e);
+        setSpotlightId(previousSpotlight);
+        triggerToast(nextSpotlight ? 'Couldn’t pin the photo' : 'Couldn’t unpin the photo', hostErrorHint(e));
       }
     }
   };
 
-  // Unpins the spotlight on every screen (synced via the database) and resumes auto-play
-  const resumeSlideshow = async () => {
+  // Unpins and carries on from `position`, by default the pinned photo itself, so nothing jumps.
+  // The slideshow is moved first and the pin released after, so every screen changes exactly once.
+  const unpinAt = async (position?: number) => {
+    const pinnedIndex = spotlightId ? publicMemories.findIndex((m) => m.id === spotlightId) : -1;
+    const target = position ?? (pinnedIndex >= 0 ? pinnedIndex : computeSlidePosition());
     setSpotlightId(null);
-    saveSlideshow(computeSlidePosition(), false);
+    const moved = saveSlideshow(target, false);
     triggerToast('Slideshow resumed', 'Live screens are rolling through memories again');
+    await moved;
 
     if (isSupabaseConfigured() && isUuid(currentEvent.id)) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('posts')
           .update({ is_spotlight: false })
           .eq('event_id', currentEvent.id)
           .eq('is_spotlight', true);
-      } catch (e) {
+        if (error) throw error;
+      } catch (e: any) {
         console.warn('resumeSlideshow db error:', e);
+        triggerToast('Couldn’t unpin the photo on the big screen', hostErrorHint(e));
       }
     }
   };
 
-  const cycleNextSlide = () => {
-    // Advancing from a pinned photo also releases it on every screen
-    if (spotlightId) resumeSlideshow();
-    saveSlideshow(computeSlidePosition() + 1, slideshowPaused);
-    triggerToast('Advanced to next memory on live screen');
+  // Unpins every screen and resumes from the pinned photo
+  const resumeSlideshow = () => unpinAt();
+
+  const togglePinCurrent = () => {
+    if (spotlightId) {
+      unpinAt();
+    } else if (activeSlideMemory && activeSlideMemory.id !== 'empty') {
+      toggleSpotlight(activeSlideMemory.id);
+    }
   };
 
-  const cyclePrevSlide = () => {
-    if (spotlightId) resumeSlideshow();
-    saveSlideshow(computeSlidePosition() - 1, slideshowPaused);
+  // From a pinned photo, the arrows step to the photo next to it (and release the pin) in one move
+  const stepSlide = (delta: number) => {
+    if (spotlightId) {
+      const pinnedIndex = publicMemories.findIndex((m) => m.id === spotlightId);
+      unpinAt((pinnedIndex >= 0 ? pinnedIndex : computeSlidePosition()) + delta);
+      return;
+    }
+    saveSlideshow(computeSlidePosition() + delta, false);
   };
+  const cycleNextSlide = () => stepSlide(1);
+  const cyclePrevSlide = () => stepSlide(-1);
 
   const togglePrivacy = async (memoryId: string) => {
     const target = memories.find((m) => m.id === memoryId);
@@ -1973,42 +2083,69 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
-        await supabase.from('posts').update({ is_private: nextPriv }).eq('id', memoryId);
-      } catch (e) {
+        const { data: saved, error } = await supabase.from('posts').update({ is_private: nextPriv }).eq('id', memoryId).select('id');
+        if (error) throw error;
+        if (!saved?.length) throw new Error('');
+      } catch (e: any) {
         console.warn('togglePrivacy db error:', e);
+        setMemories((prev) => prev.map((m) => (m.id === memoryId ? { ...m, isPrivate: target.isPrivate } : m)));
+        triggerToast(
+          nextPriv ? 'Couldn’t move it to the private vault' : 'Couldn’t make it public',
+          hostErrorHint(e)
+        );
       }
     }
   };
 
   const deleteMemory = async (memoryId: string) => {
-    if (spotlightId === memoryId) setSpotlightId(null);
+    const removed = memories.find((m) => m.id === memoryId);
+    const wasSpotlight = spotlightId === memoryId;
+    if (wasSpotlight) setSpotlightId(null);
     setMemories((prev) => prev.filter((m) => m.id !== memoryId));
-    triggerToast('Memory deleted by host moderation');
+    triggerToast('Photo deleted');
+    const undo = (reason?: string) => {
+      if (removed) setMemories((prev) => (prev.some((m) => m.id === memoryId) ? prev : [removed, ...prev]));
+      if (wasSpotlight) setSpotlightId(memoryId);
+      triggerToast('Couldn’t delete it', reason || 'Please check your connection and try again');
+    };
 
     if (isSupabaseConfigured() && isUuid(memoryId)) {
       try {
-        await deleteMediaFromR2({ postIds: [memoryId] });
-        await supabase.from('posts').delete().eq('id', memoryId);
-      } catch (e) {
+        if (!(await deleteMediaFromR2({ postIds: [memoryId] }))) return undo();
+        const { data: gone, error } = await supabase.from('posts').delete().eq('id', memoryId).select('id');
+        if (error) throw error;
+        if (!gone?.length) throw new Error('');
+      } catch (e: any) {
         console.warn('deleteMemory db error:', e);
+        undo(hostErrorHint(e));
       }
     }
   };
 
   const deleteMultipleMemories = async (ids: string[]) => {
     const idSet = new Set(ids);
+    const removed = memories.filter((m) => idSet.has(m.id));
+    const previousSpotlight = spotlightId;
     if (spotlightId && idSet.has(spotlightId)) setSpotlightId(null);
     setMemories((prev) => prev.filter((m) => !idSet.has(m.id)));
     triggerToast(`Deleted ${ids.length} memories`, 'Removed from gallery and projector');
+    const undo = (reason?: string) => {
+      setMemories((prev) => [...removed.filter((r) => !prev.some((m) => m.id === r.id)), ...prev]);
+      if (previousSpotlight && idSet.has(previousSpotlight)) setSpotlightId(previousSpotlight);
+      triggerToast(`Couldn’t delete ${ids.length === 1 ? 'it' : 'them'}`, reason || 'Please check your connection and try again');
+    };
 
     if (isSupabaseConfigured()) {
       const validUuids = ids.filter(isUuid);
       if (validUuids.length > 0) {
         try {
-          await deleteMediaFromR2({ postIds: validUuids });
-          await supabase.from('posts').delete().in('id', validUuids);
-        } catch (e) {
+          if (!(await deleteMediaFromR2({ postIds: validUuids }))) return undo();
+          const { data: gone, error } = await supabase.from('posts').delete().in('id', validUuids).select('id');
+          if (error) throw error;
+          if (!gone?.length) throw new Error('');
+        } catch (e: any) {
           console.warn('deleteMultipleMemories db error:', e);
+          undo(hostErrorHint(e));
         }
       }
     }
@@ -2096,8 +2233,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         spotlightId,
         setSpotlightId,
         currentSlideIdx,
-        isSlideshowPlaying,
-        toggleSlideshowPlaying,
+        togglePinCurrent,
         activeSlideMemory,
         cycleNextSlide,
         cyclePrevSlide,
@@ -2108,6 +2244,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         floatingEmojis,
         sendReaction,
         toast,
+        dismissToast,
         triggerToast,
         isZipModalOpen,
         setIsZipModalOpen,
