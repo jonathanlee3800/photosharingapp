@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ReactCrop, { centerCrop, makeAspectCrop, type PercentCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { X } from 'lucide-react';
 
 const SHAPES: Array<{ label: string; aspect?: number }> = [
   { label: 'Free' },
@@ -76,18 +75,21 @@ export default function PhotoCropDialog({
   // Rendered on the page itself, so it covers everything wherever it's opened from
   return createPortal(
     <div
-      className="fixed inset-0 z-[95] flex flex-col bg-[#101813] text-white"
+      className="fixed left-0 top-0 w-full h-[100dvh] z-[95] flex flex-col bg-[#101813] text-white"
       role="dialog"
       aria-modal="true"
       aria-label="Crop photo"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="h-14 px-4 flex items-center justify-between shrink-0">
-        <button type="button" onClick={onCancel} aria-label="Cancel crop" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center press">
-          <X className="w-5 h-5" />
+      {/* Cancel and Done sit at the top so the phone's toolbar can never hide them */}
+      <div className="h-14 px-3 grid grid-cols-[1fr_auto_1fr] items-center shrink-0">
+        <button type="button" onClick={onCancel} className="justify-self-start h-10 px-3 rounded-full text-[16px] text-white/85 press">
+          Cancel
         </button>
         <span className="text-[15px] font-semibold">Crop photo</span>
-        <span className="w-10" />
+        <button type="button" onClick={apply} className="justify-self-end h-10 px-5 rounded-full bg-white text-[#1C2820] text-[16px] font-semibold press">
+          Done
+        </button>
       </div>
 
       <div className="flex-1 min-h-0 flex items-center justify-center px-4">
@@ -100,11 +102,13 @@ export default function PhotoCropDialog({
           keepSelection
           ruleOfThirds
         >
-          <img ref={imageRef} src={src} alt="Photo to crop" className="block max-w-full max-h-[calc(100dvh-13rem)] object-contain" />
+          <img ref={imageRef} src={src} alt="Photo to crop" className="block max-w-full object-contain"
+            style={{ maxHeight: 'calc(100dvh - 9.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}
+          />
         </ReactCrop>
       </div>
 
-      <div className="px-4 pt-3 pb-4 space-y-3 shrink-0">
+      <div className="px-4 pt-3 pb-4 shrink-0">
         <div className="flex justify-center gap-2">
           {SHAPES.map((option, index) => (
             <button
@@ -119,14 +123,6 @@ export default function PhotoCropDialog({
               {option.label}
             </button>
           ))}
-        </div>
-        <div className="flex gap-3 max-w-md mx-auto">
-          <button type="button" onClick={onCancel} className="flex-1 h-12 rounded-2xl bg-white/10 text-[15px] font-semibold press">
-            Cancel
-          </button>
-          <button type="button" onClick={apply} className="flex-1 h-12 rounded-2xl bg-white text-[#1C2820] text-[15px] font-semibold press">
-            Apply crop
-          </button>
         </div>
       </div>
     </div>,

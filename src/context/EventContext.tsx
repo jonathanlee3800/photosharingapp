@@ -768,6 +768,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSupabaseConfigured() || !isProjectorScreen || !isRealEvent) return;
     const eventId = currentEvent.id;
+    // In a burst of votes a message can be missed. Once votes go quiet for a few seconds, re-read the
+    // event once so the total on screen is always exact (one small request, not polling).
+    let settle: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
       .channel(`event-votes-${eventId}`)
       .on('broadcast', { event: 'round-total' }, ({ payload }) => {
@@ -775,12 +778,15 @@ export function EventProvider({ children }: { children: ReactNode }) {
         if (Number.isFinite(total)) {
           setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, roundVoteTotal: total } : e)));
         }
+        clearTimeout(settle);
+        settle = setTimeout(() => loadEvent(eventId), 3000);
       })
       .subscribe();
     return () => {
+      clearTimeout(settle);
       supabase.removeChannel(channel);
     };
-  }, [isProjectorScreen, isRealEvent, currentEvent.id]);
+  }, [isProjectorScreen, isRealEvent, currentEvent.id, loadEvent]);
 
   useEffect(() => {
     if (!isSupabaseConfigured() || !isRealEvent) return;
@@ -881,6 +887,10 @@ export function EventProvider({ children }: { children: ReactNode }) {
     };
     const feedChannel = supabase
       .channel(`event-feed-${eventId}`)
+      // New photos arrive in bundles, at most one message every 3 seconds (see flush_feed_outbox)
+      .on('broadcast', { event: 'posts-added' }, ({ payload }) => {
+        if (Array.isArray(payload?.posts)) payload.posts.forEach(applyFeedPost);
+      })
       .on('broadcast', { event: 'post-added' }, ({ payload }) => applyFeedPost(payload))
       .on('broadcast', { event: 'post-changed' }, ({ payload }) => applyFeedPost(payload))
       .on('broadcast', { event: 'post-removed' }, ({ payload }) => {
