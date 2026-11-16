@@ -29,8 +29,10 @@ export default function HostRoundPage() {
   const hasResults = !votingRound.isOpen && Boolean(votingRound.closedAt && votingRound.promptId);
   const prompt = getPrompt(votingRound.promptId);
 
-  // Same fixed order guests see, so photos don't jump around as votes come in
-  const contenders = publicMemories.filter((m) => m.promptId === votingRound.promptId);
+  // Most votes first; photos on the same number keep their usual order
+  const contenders = publicMemories
+    .filter((m) => m.promptId === votingRound.promptId)
+    .sort((a, b) => (b.votes || 0) - (a.votes || 0));
   const totalVotes = contenders.reduce((sum, m) => sum + (m.votes || 0), 0);
   const rankOf = (votes: number) => 1 + contenders.filter((m) => m.votes > votes).length;
 

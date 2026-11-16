@@ -17,6 +17,7 @@ import { useEvent } from '@/context/EventContext';
 import { generateQrDataUrl } from '@/lib/qrHelper';
 import { formatPin } from '@/lib/pin';
 import SlideStage from '@/components/SlideStage';
+import ProjectorWinnerReveal from '@/components/ProjectorWinnerReveal';
 
 const CONTROLS_HIDE_MS = 1000;
 
@@ -377,6 +378,9 @@ export default function ProjectorScreen({ exitHref }: { exitHref?: string }) {
           </button>
         </div>
       </div>
+
+      {/* Winner reveal when a contest round ends */}
+      <ProjectorWinnerReveal />
     </div>
   );
 }

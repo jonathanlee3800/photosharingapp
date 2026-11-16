@@ -6,8 +6,8 @@ import { useEvent } from '@/context/EventContext';
 import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageProcessor';
 import PhotoCropDialog from '@/components/PhotoCropDialog';
 import { readVideoDuration } from '@/lib/videoDuration';
+import { compressVideo, maxPickableVideoBytes, MAX_VIDEO_BYTES } from '@/lib/videoCompressor';
 
-const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
 
 interface PickedFile {
   id: number;
@@ -73,7 +73,7 @@ export default function HostUploadDialog({
     const next: PickedFile[] = [];
     for (const file of files) {
       const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
-      if (isVideo ? file.size > MAX_VIDEO_BYTES : !isValidImageFile(file)) {
+      if (isVideo ? file.size > maxPickableVideoBytes() : !isValidImageFile(file)) {
         skipped++;
         continue;
       }
@@ -89,7 +89,7 @@ export default function HostUploadDialog({
     setPicked((prev) => [...prev, ...next]);
     next.filter((p) => p.converting).forEach(convertForPreview);
     if (skipped > 0) {
-      triggerToast(`${skipped} ${skipped === 1 ? 'file' : 'files'} skipped`, 'Only photos and videos under 15 MB can be uploaded');
+      triggerToast(`${skipped} ${skipped === 1 ? 'file' : 'files'} skipped`, 'Only photos and short videos can be uploaded');
     }
   };
 
@@ -130,10 +130,17 @@ export default function HostUploadDialog({
       const { file, isVideo, processedUrl } = picked[i];
       setStatus(`Preparing ${i + 1} of ${picked.length}…`);
       try {
+        let ready = file;
+        if (isVideo) {
+          ready = (
+            await compressVideo(file, (p) => setStatus(`Shrinking video ${i + 1} of ${picked.length}… ${Math.round(p * 100)}%`))
+          ).file;
+          if (ready.size > MAX_VIDEO_BYTES) throw new Error('Video too long after compression');
+        }
         const url = isVideo
-          ? await readAsDataUrl(file)
+          ? await readAsDataUrl(ready)
           : processedUrl || (await processUploadedImage(file, PHOTO_OPTIONS)).dataUrl;
-        const duration = isVideo ? await readVideoDuration(file) : null;
+        const duration = isVideo ? await readVideoDuration(ready) : null;
         entries.push({
           type: isVideo ? 'video' : 'photo',
           url,
@@ -220,7 +227,7 @@ export default function HostUploadDialog({
                 <ImagePlus className="w-7 h-7" />
               </span>
               <span className="text-sm font-bold text-[#1C2820]">Choose photos or videos</span>
-              <span className="text-xs text-[#1C2820]/50">Select several at once · HEIC, JPG, PNG, videos up to 15 MB</span>
+              <span className="text-xs text-[#1C2820]/50">Select several at once · HEIC, JPG, PNG, videos up to about 45 seconds</span>
             </button>
           ) : (
             <div className="space-y-2">

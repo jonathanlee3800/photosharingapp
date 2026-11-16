@@ -9,6 +9,7 @@ import { processUploadedImage, isValidImageFile, isHeicFile } from '@/lib/imageP
 import PhotoFrame from '@/components/PhotoFrame';
 import PhotoCropDialog from '@/components/PhotoCropDialog';
 import { readVideoDuration } from '@/lib/videoDuration';
+import { compressVideo, maxPickableVideoBytes, MAX_VIDEO_BYTES } from '@/lib/videoCompressor';
 
 interface SelectedMediaFile {
   url: string;
@@ -26,6 +27,7 @@ export default function UploadPage() {
   const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
   const [selectedFile, setSelectedFile] = useState<SelectedMediaFile | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [caption, setCaption] = useState('');
   const [promptId, setPromptId] = useState(prompts[0]?.id || 'fav-chapter');
@@ -57,8 +59,8 @@ export default function UploadPage() {
     const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
 
     if (isVideo) {
-      if (file.size > 15 * 1024 * 1024) {
-        triggerToast('Video file is too large', 'Please select a clip under 15 MB for quick sharing');
+      if (file.size > maxPickableVideoBytes()) {
+        triggerToast('Video file is too large', 'Please choose a shorter clip');
         return;
       }
 
@@ -67,6 +69,17 @@ export default function UploadPage() {
       setSelectedFile({ url: instantVideoUrl, name: file.name, type: 'video' });
       setMediaType('video');
       const durationRead = readVideoDuration(file);
+
+      // Shrink it to 720p on the phone first: faster upload, less data on the venue Wi-Fi
+      setCompressProgress(0);
+      const { file: ready } = await compressVideo(file, setCompressProgress);
+      setCompressProgress(null);
+      if (ready.size > MAX_VIDEO_BYTES) {
+        setSelectedFile(null);
+        setIsProcessing(false);
+        triggerToast('Video is too long', 'Please choose a clip under about 45 seconds');
+        return;
+      }
 
       const reader = new FileReader();
       reader.onload = async (event) => {
@@ -78,7 +91,7 @@ export default function UploadPage() {
         setIsProcessing(false);
       };
       reader.onerror = () => setIsProcessing(false);
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(ready);
       return;
     }
 
@@ -268,7 +281,7 @@ export default function UploadPage() {
                   {isVideo ? 'Record or choose a video' : 'Take or choose a photo'}
                 </span>
                 <span className="block text-[14px] text-[#1C2820]/50">
-                  {isVideo ? 'Up to 15 MB' : 'iPhone HEIC, JPG and PNG all work'}
+                  {isVideo ? 'Clips up to about 45 seconds' : 'iPhone HEIC, JPG and PNG all work'}
                 </span>
               </span>
             </button>
@@ -277,7 +290,11 @@ export default function UploadPage() {
           {isProcessing && (
             <div className="absolute inset-0 bg-black/45 backdrop-blur-sm flex flex-col items-center justify-center gap-3 text-white">
               <Loader2 className="w-8 h-8 animate-spin" />
-              <span className="text-[14px] font-medium">Preparing your {isVideo ? 'video' : 'photo'}…</span>
+              <span className="text-[14px] font-medium">
+                {compressProgress !== null
+                  ? `Shrinking your video… ${Math.round(compressProgress * 100)}%`
+                  : `Preparing your ${isVideo ? 'video' : 'photo'}…`}
+              </span>
             </div>
           )}
         </div>
