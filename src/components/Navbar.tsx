@@ -142,6 +142,22 @@ export default function Navbar() {
               </Link>
             )}
 
+            {/* Mobile Slideshow pill (header access on phones) */}
+            {isGuest && inGuestArea && (
+              <Link
+                href={`${base}/slideshow`}
+                title="Watch live slideshow"
+                className={`md:hidden flex items-center gap-1.5 h-8 px-2.5 rounded-full text-[11px] font-semibold border transition-all press ${
+                  pathname?.endsWith('/slideshow')
+                    ? 'bg-[#2D4A3A] text-white border-[#2D4A3A] shadow-sm'
+                    : 'bg-[#E9EFEA] text-[#2D4A3A] border-[#2D4A3A]/15 hover:bg-[#DDE6DF]'
+                }`}
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Slideshow</span>
+              </Link>
+            )}
+
             {/* Guest avatar: opens the page where they can change their name or leave */}
             {isGuest && hasJoined && inGuestArea && (
               <Link
