@@ -51,6 +51,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${cormorant.variable} ${plusJakarta.variable}`}>
+      <head>
+        {/* Defensive shim for mobile in-app browsers (Telegram, Web3 wallet extensions) that attempt to access window.ethereum */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if(typeof window!=='undefined'&&!window.ethereum){try{window.ethereum={};}catch(e){}}`,
+          }}
+        />
+      </head>
       <body className="antialiased min-h-[100dvh] bg-[#FAF8F5] text-[#1C2820] flex flex-col font-sans">
         <EventProvider>
           <Navbar />

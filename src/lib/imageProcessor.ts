@@ -27,33 +27,13 @@ export function isValidImageFile(file: File): boolean {
 
 /**
  * Safely converts an iPhone HEIC/HEIF file into a standard JPEG Blob.
- * Tier 1: Next.js API Route (/api/convert-heic) using libheif WASM (100% reliable)
- * Tier 2: Client-side heic2any fallback
+ * Tier 1: Client-side heic2any (Phone-First: runs locally on guest's device, zero server load)
+ * Tier 2: Server-side Next.js API Route (/api/convert-heic) fallback (safety net)
  */
 export async function convertHeicToJpegBlob(file: File): Promise<Blob> {
   if (typeof window === 'undefined') return file;
 
-  // 1. High-reliability server conversion via /api/convert-heic
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await fetch('/api/convert-heic', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (response.ok) {
-      const jpegBlob = await response.blob();
-      if (jpegBlob && jpegBlob.size > 0) {
-        return jpegBlob;
-      }
-    }
-  } catch (apiErr) {
-    console.warn('Server HEIC converter unavailable, trying client fallback:', apiErr);
-  }
-
-  // 2. Client-side fallback via heic2any
+  // 1. Phone-First: High-performance client-side conversion via heic2any
   try {
     const heicModule = await import('heic2any');
     const heic2any = (heicModule as any).default || heicModule;
@@ -64,11 +44,35 @@ export async function convertHeicToJpegBlob(file: File): Promise<Blob> {
       quality: 0.85,
     });
 
-    return Array.isArray(converted) ? converted[0] : converted;
-  } catch (err) {
-    console.warn('heic2any conversion fallback:', err);
-    return file;
+    const jpegBlob = Array.isArray(converted) ? converted[0] : converted;
+    if (jpegBlob && jpegBlob.size > 0) {
+      return jpegBlob;
+    }
+  } catch (clientErr) {
+    console.warn('Client-side HEIC conversion failed, falling back to server:', clientErr);
   }
+
+  // 2. Server-side fallback: In case the client browser/device encounters an issue
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/convert-heic', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (response.ok) {
+      const serverJpegBlob = await response.blob();
+      if (serverJpegBlob && serverJpegBlob.size > 0) {
+        return serverJpegBlob;
+      }
+    }
+  } catch (serverErr) {
+    console.warn('Server HEIC converter fallback also failed:', serverErr);
+  }
+
+  return file;
 }
 
 /**
