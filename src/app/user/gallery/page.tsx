@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Sparkles, Film, Trophy, Plus, Search, ChevronRight, X, Camera } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
 import PhotoLightboxModal from '@/components/PhotoLightboxModal';
+import ScrollRow from '@/components/ScrollRow';
 import { useSearchPlaceholder } from '@/hooks/useSearchPlaceholder';
 import PhotoFrame from '@/components/PhotoFrame';
 
@@ -227,7 +228,8 @@ export default function GalleryPage() {
             </div>
           )}
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+          <div className="-mx-4 md:mx-0">
+          <ScrollRow className="gap-2 px-4 md:px-0" activeKey={selectedPromptId} label="Photo tags">
             {[{ id: 'all', icon: '', label: 'All' }, ...prompts].map((p) => {
               const active = selectedPromptId === p.id;
               const count =
@@ -248,6 +250,7 @@ export default function GalleryPage() {
                 </button>
               );
             })}
+          </ScrollRow>
           </div>
         </div>
       </div>
