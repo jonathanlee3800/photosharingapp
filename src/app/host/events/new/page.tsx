@@ -20,6 +20,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { EXAMPLE_PIN } from '@/lib/pin';
 import { PromptItem } from '@/lib/initialData';
 import HostAuthGuard from '@/components/HostAuthGuard';
 import DatePicker from '@/components/DatePicker';
@@ -228,7 +229,7 @@ export default function CreateEventPage() {
                 <div>
                   <div className="text-xs font-bold text-[#1C2820] uppercase tracking-wide">Event PIN</div>
                   <p className="text-[11px] text-[#1C2820]/60 font-medium mt-0.5 leading-relaxed">
-                    When you launch the event, we automatically generate a unique 6-digit code (e.g. <span className="font-bold tabular-nums text-[#2D4A3A]">482 913</span>) for your celebration. Your guests use this code to join by typing it on the welcome screen or scanning the QR code you display on the day. You can print or display this code at the venue so everyone can find the gallery.
+                    When you launch the event, we automatically generate a unique 6-digit code (e.g. <span className="font-bold tabular-nums text-[#2D4A3A]">{EXAMPLE_PIN}</span>) for your celebration. Your guests use this code to join by typing it on the welcome screen or scanning the QR code you display on the day. You can print or display this code at the venue so everyone can find the gallery.
                   </p>
                 </div>
               </div>

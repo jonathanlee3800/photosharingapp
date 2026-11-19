@@ -17,6 +17,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { formatPin } from '@/lib/pin';
 
 export default function JoinPage() {
   const router = useRouter();
@@ -174,7 +175,7 @@ export default function JoinPage() {
                 className="absolute right-5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/15 text-[11px] font-mono font-semibold tracking-wider text-white shadow-sm"
                 style={{ top: 'calc(env(safe-area-inset-top) + 0.85rem)' }}
               >
-                {activeEvent.code}
+                {formatPin(activeEvent.code)}
               </div>
             )}
 

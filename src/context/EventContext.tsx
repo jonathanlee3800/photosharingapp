@@ -1595,7 +1595,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     );
     if (found) {
       setCurrentEventIdState(found.id);
-      triggerToast(`Celebration switched to "${found.title}"`, `Passcode: ${found.code}`);
+      triggerToast(`Celebration switched to "${found.title}"`, `PIN: ${formatPin(found.code)}`);
       return true;
     }
     triggerToast('Passcode not recognized', 'Please double check the code with the couple');

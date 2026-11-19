@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
-import { PIN_LENGTH, cleanPinInput, formatPin } from '@/lib/pin';
+import { PIN_INPUT_PATTERN, PIN_LENGTH, cleanPinInput, formatPinTyping } from '@/lib/pin';
 
 export default function EnterPinPage() {
   return (
@@ -72,12 +72,12 @@ function EnterPin() {
             id="event-pin"
             type="text"
             inputMode="numeric"
-            pattern="[0-9 ]*"
+            pattern={PIN_INPUT_PATTERN}
             autoComplete="off"
             autoFocus
             enterKeyHint="go"
             placeholder="6-digit code"
-            value={formatPin(pin)}
+            value={formatPinTyping(pin)}
             onChange={(e) => {
               setPin(cleanPinInput(e.target.value));
               if (error) setError('');

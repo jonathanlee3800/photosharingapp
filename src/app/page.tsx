@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEvent } from '@/context/EventContext';
+import { EXAMPLE_PIN } from '@/lib/pin';
 
 export default function HomePage() {
   const router = useRouter();
@@ -205,7 +206,7 @@ export default function HomePage() {
                         autoCapitalize="characters"
                         autoComplete="off"
                         enterKeyHint="go"
-                        placeholder="e.g. 482 910 or EVENT-1"
+                        placeholder={`e.g. ${EXAMPLE_PIN} or EVENT-1`}
                         value={guestCode}
                         onChange={(e) => {
                           const val = e.target.value;
