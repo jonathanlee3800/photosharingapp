@@ -32,9 +32,7 @@ export interface EventItem {
   id: string;
   title: string;
   date: string;
-  venue: string;
   code: string;
-  slug: string;
   coverUrl: string;
   prompts: PromptItem[];
   votingPromptId: string;
@@ -50,7 +48,6 @@ export interface EventItem {
   // Shared slideshow position: every screen works out the current slide from these and the server's clock
   slideshowAnchorAt?: string | null;
   slideshowAnchorIndex?: number;
-  slideshowPaused?: boolean;
 }
 
 export interface HostUser {
@@ -72,9 +69,7 @@ export const INITIAL_EVENTS: EventItem[] = [
     id: 'a0000000-0000-0000-0000-000000000001',
     title: 'Joshua & Simone',
     date: '24 May 2026',
-    venue: 'The Glasshouse',
     code: 'EVENT-1',
-    slug: 'joshua-and-simone',
     coverUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=85',
     prompts: INITIAL_PROMPTS,
     votingPromptId: 'funny-simone',

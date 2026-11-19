@@ -186,11 +186,6 @@ export default function JoinPage() {
                     {activeEvent.date}
                   </span>
                 )}
-                {activeEvent.venue && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-black/25 backdrop-blur-md border border-white/10 text-[11px] font-medium text-white/85">
-                    {activeEvent.venue}
-                  </span>
-                )}
               </div>
               <h1 className="font-serif text-3xl sm:text-[36px] leading-[1.08] font-medium tracking-tight text-white drop-shadow-sm">
                 {activeEvent.title}

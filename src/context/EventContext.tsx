@@ -89,7 +89,6 @@ interface EventContextType {
     id?: string;
     title: string;
     date: string;
-    venue?: string;
     coverUrl?: string;
     initialPrompts?: PromptItem[];
   }) => Promise<EventItem>;
@@ -231,9 +230,7 @@ const mapDbEvent = (e: any): EventItem => ({
   id: e.id,
   title: e.title,
   date: e.date || '24 May 2026',
-  venue: e.venue || '',
   code: e.join_code,
-  slug: e.slug || e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
   coverUrl: e.cover_url || DEFAULT_COVER_URL,
   prompts:
     e.prompts && e.prompts.length > 0
@@ -248,7 +245,6 @@ const mapDbEvent = (e: any): EventItem => ({
   roundVoteTotal: Number(e.round_vote_total) || 0,
   slideshowAnchorAt: e.slideshow_anchor_at || null,
   slideshowAnchorIndex: Number(e.slideshow_anchor_index) || 0,
-  slideshowPaused: Boolean(e.slideshow_paused),
 });
 
 // Adds or refreshes one event, keeping the owner id (only a host's own query includes it) and dropping the sample event
@@ -277,12 +273,11 @@ const mapDbPost = (p: any): MemoryItem => ({
   createdAt: p.created_at,
 });
 
-// Finds an event in memory or fallback data by join code (formatted or raw), UUID, or slug
+// Finds an event in memory or fallback data by join code (formatted or raw) or id
 const findLocalEvent = (query: string, eventList: EventItem[]): EventItem | undefined => {
   const clean = (query || '').trim().toLowerCase();
   if (!clean) return undefined;
   const digitsOnly = clean.replace(/\D/g, '');
-  const cleanSlug = clean.replace(/\s+/g, '-');
 
   return (
     // 1. Check join code (stripped of spaces/dashes if 6 digits)
@@ -290,20 +285,11 @@ const findLocalEvent = (query: string, eventList: EventItem[]): EventItem | unde
       ? eventList.find((e) => e.code.replace(/\D/g, '') === digitsOnly)
       : undefined) ||
     // 2. Exact join code match (e.g. EVENT-1 or 482910)
-    eventList.find((e) => e.code.toLowerCase() === clean || e.code.toLowerCase() === cleanSlug) ||
+    eventList.find((e) => e.code.toLowerCase() === clean) ||
     // 3. Exact UUID / ID match
     eventList.find((e) => e.id.toLowerCase() === clean) ||
-    // 4. Slug match (e.g. joshua-and-simone)
-    eventList.find((e) => e.slug.toLowerCase() === clean || e.slug.toLowerCase() === cleanSlug) ||
-    // 5. Fallback check against INITIAL_EVENTS
-    INITIAL_EVENTS.find(
-      (e) =>
-        e.code.toLowerCase() === clean ||
-        e.code.toLowerCase() === cleanSlug ||
-        e.id.toLowerCase() === clean ||
-        e.slug.toLowerCase() === clean ||
-        e.slug.toLowerCase() === cleanSlug
-    )
+    // 4. Fallback check against INITIAL_EVENTS
+    INITIAL_EVENTS.find((e) => e.code.toLowerCase() === clean || e.id.toLowerCase() === clean)
   );
 };
 
@@ -999,23 +985,18 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   // Shared slideshow: every screen works out the same position from the server's clock, so a playing
   // slideshow stays in step with no messages. Only the host's skip changes the event.
-  // There is no separate pause: holding a photo is done by pinning it, so guests see one clear
-  // "Pinned" state. Any old saved pause is ignored and the slideshow carries on.
-  const slideshowPaused = false;
+  // There is no pause: holding a photo is done by pinning it, so guests see one clear "Pinned" state.
   const slideAnchorIndex = currentEvent.slideshowAnchorIndex || 0;
   const slideAnchorMs = currentEvent.slideshowAnchorAt ? new Date(currentEvent.slideshowAnchorAt).getTime() : 0;
   const computeSlidePosition = useCallback(
-    () =>
-      slideshowPaused
-        ? slideAnchorIndex
-        : slideAnchorIndex + Math.floor((Date.now() + clockOffsetMs - slideAnchorMs) / SLIDE_MS),
-    [slideshowPaused, slideAnchorIndex, slideAnchorMs, clockOffsetMs]
+    () => slideAnchorIndex + Math.floor((Date.now() + clockOffsetMs - slideAnchorMs) / SLIDE_MS),
+    [slideAnchorIndex, slideAnchorMs, clockOffsetMs]
   );
   const [slidePosition, setSlidePosition] = useState(0);
   const slideCount = publicMemories.length;
   useEffect(() => {
     setSlidePosition(computeSlidePosition());
-    if (slideshowPaused || slideCount === 0) return;
+    if (slideCount === 0) return;
     let timer: ReturnType<typeof setTimeout>;
     const scheduleNext = () => {
       // Wake exactly when the next slide is due, rather than counting from when this screen opened
@@ -1027,22 +1008,22 @@ export function EventProvider({ children }: { children: ReactNode }) {
     };
     scheduleNext();
     return () => clearTimeout(timer);
-  }, [computeSlidePosition, slideshowPaused, slideCount, clockOffsetMs, slideAnchorMs]);
+  }, [computeSlidePosition, slideCount, clockOffsetMs, slideAnchorMs]);
   // Worked out fresh on every render (the timer above only triggers the re-render), so a skip or
   // unpin shows the new photo straight away, never one frame of the old position first
   const livePosition = slideCount > 0 ? computeSlidePosition() : slidePosition;
   const currentSlideIdx = slideCount > 0 ? ((livePosition % slideCount) + slideCount) % slideCount : 0;
 
   // Host only: save a new position (the database's rules refuse anyone else, and it reaches every screen)
-  const saveSlideshow = (position: number, paused: boolean): PromiseLike<void> => {
+  const saveSlideshow = (position: number): PromiseLike<void> => {
     const anchorAt = new Date(Date.now() + clockOffsetMs).toISOString();
     const anchorIndex = slideCount > 0 ? ((position % slideCount) + slideCount) % slideCount : 0;
-    const patch = { slideshowAnchorAt: anchorAt, slideshowAnchorIndex: anchorIndex, slideshowPaused: paused };
+    const patch = { slideshowAnchorAt: anchorAt, slideshowAnchorIndex: anchorIndex };
     setEvents((prev) => prev.map((ev) => (ev.id === currentEvent.id ? { ...ev, ...patch } : ev)));
     if (!isSupabaseConfigured() || !isUuid(currentEvent.id)) return Promise.resolve();
     return supabase
       .from('events')
-      .update({ slideshow_anchor_at: anchorAt, slideshow_anchor_index: anchorIndex, slideshow_paused: paused })
+      .update({ slideshow_anchor_at: anchorAt, slideshow_anchor_index: anchorIndex })
       .eq('id', currentEvent.id)
       .then(({ error }) => {
         if (error) {
@@ -1211,15 +1192,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
     id?: string;
     title: string;
     date: string;
-    venue?: string;
     coverUrl?: string;
     initialPrompts?: PromptItem[];
   }): Promise<EventItem> => {
     // The 6-digit event PIN is assigned by the database and can't be chosen or changed
     let joinCode = '';
-    const slug =
-      data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') ||
-      'wedding-event';
 
     let defaultPromptsList =
       data.initialPrompts && data.initialPrompts.length > 0
@@ -1239,8 +1216,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
               id: eventUuid,
               title: data.title.trim(),
               date: data.date.trim() || '24 May 2026',
-              venue: data.venue?.trim() || '',
-              slug,
               // An uploaded cover is stored in R2 just below; the database only keeps its address
               cover_url: data.coverUrl && !data.coverUrl.startsWith('data:') ? data.coverUrl : DEFAULT_COVER_URL,
               owner_id: hostUser.id,
@@ -1299,9 +1274,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       id: eventUuid,
       title: data.title.trim(),
       date: data.date.trim() || '24 May 2026',
-      venue: data.venue?.trim() || '',
       code: joinCode,
-      slug,
       coverUrl: finalCoverUrl,
       prompts: defaultPromptsList,
       votingPromptId: defaultPromptsList[0]?.id || '',
@@ -1331,7 +1304,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
         const payload: any = {};
         if (updates.title) payload.title = updates.title;
         if (updates.date) payload.date = updates.date;
-        if (updates.venue) payload.venue = updates.venue;
         if (updates.coverUrl) {
           payload.cover_url = updates.coverUrl.startsWith('data:')
             ? (await uploadMediaToR2(updates.coverUrl, id, generateUUID())).url
@@ -1619,7 +1591,6 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const found = events.find(
       (e) =>
         e.code.toUpperCase() === clean ||
-        e.slug.toUpperCase() === clean ||
         e.id.toUpperCase() === clean
     );
     if (found) {
@@ -1655,20 +1626,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       lastReactionSentRef.current = now;
       sendReactionToProjector(currentEvent.id, emoji);
     }
-
-    // Record reaction in Supabase
-    if (isSupabaseConfigured()) {
-      supabase
-        .from('reactions')
-        .insert([
-          {
-            reaction_type: emoji,
-            event_id: isUuid(currentEvent.id) ? currentEvent.id : null,
-            guest_id: hostUser?.id && isUuid(hostUser.id) ? hostUser.id : null,
-          },
-        ])
-        .then();
-    }
+    // Emoji taps are live-only: nothing stores them (the projector gets them over the live channel above)
   };
 
   // Uploads local media to R2 when configured; remote URLs (presets) pass through unchanged
@@ -2019,7 +1977,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     const pinnedIndex = spotlightId ? publicMemories.findIndex((m) => m.id === spotlightId) : -1;
     const target = position ?? (pinnedIndex >= 0 ? pinnedIndex : computeSlidePosition());
     setSpotlightId(null);
-    const moved = saveSlideshow(target, false);
+    const moved = saveSlideshow(target);
     triggerToast('Slideshow resumed', 'Live screens are rolling through memories again');
     await moved;
 
@@ -2056,7 +2014,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       unpinAt((pinnedIndex >= 0 ? pinnedIndex : computeSlidePosition()) + delta);
       return;
     }
-    saveSlideshow(computeSlidePosition() + delta, false);
+    saveSlideshow(computeSlidePosition() + delta);
   };
   const cycleNextSlide = () => stepSlide(1);
   const cyclePrevSlide = () => stepSlide(-1);
